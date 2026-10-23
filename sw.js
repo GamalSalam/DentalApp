@@ -1,52 +1,41 @@
-const CACHE_NAME = 'dental-clinic-pwa-v1';
-const STATIC_ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap'
-];
+const CACHE_NAME = 'dental-clinic-pwa-v2';
+const STATIC_ASSETS = ['./', './index.html', './manifest.json'];
 
-// تثبيت الـ Service Worker وتخزين ملفات الواجهة الأساسية
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    caches.open(CACHE_NAME).then(cache =>
+      // نخزن كل ملف على حدة حتى لا يفشل التثبيت كله لو ملف واحد تعذر
+      Promise.all(STATIC_ASSETS.map(url => cache.add(url).catch(() => null)))
+    )
   );
   self.skipWaiting();
 });
 
-// تنظيف أي كاش قديم عند التحديث
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys => {
-      return Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      );
-    })
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    )
   );
   self.clients.claim();
 });
 
-// اعتراض الطلبات: تمرير طلبات Google Script مباشرة، واستخدام استراتيجية Network-First للواجهة
 self.addEventListener('fetch', event => {
-  const reqUrl = event.request.url;
+  const req = event.request;
+  const url = new URL(req.url);
 
-  // عدم تخزين بيانات الحسابات المالية القادمة من Google Apps Script
-  if (reqUrl.includes('script.google.com') || reqUrl.includes('script.googleusercontent.com')) {
-    return;
-  }
+  // لا نتدخل إطلاقاً في أي طلب غير GET أو خارج نطاق التطبيق (Google Script, CDN, Fonts)
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(event.request)
-      .then(networkResponse => {
-        if (event.request.method === 'GET' && networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+    fetch(req)
+      .then(res => {
+        if (res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(req, clone));
         }
-        return networkResponse;
+        return res;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(req).then(r => r || caches.match('./index.html')))
   );
 });

@@ -479,6 +479,54 @@
      */
     const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYNHPPJai-5yJX8yb7-8ORvnN7ZQSwE5saOEawAP2gbR_IaOHMSwxe6ZPK9Jaw8mAd/exec';
 
+
+    // ===== طبقة الاتصال بـ Google Apps Script (مع تشخيص واضح للأخطاء) =====
+    function fetchWithTimeout(url, opts = {}, ms = 25000) {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(t));
+    }
+
+    async function parseApiResponse(res) {
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        if (/accounts\.google\.com|ServiceLogin|Sign in|تسجيل الدخول/i.test(text)) {
+          throw new Error('السكربت غير متاح للعامة: اجعل الوصول (Who has access) = Anyone');
+        }
+        if (/Script function not found|doGet|doPost/i.test(text)) {
+          throw new Error('كود السكربت ينقصه doGet/doPost - راجع Code.gs وأعد النشر');
+        }
+        throw new Error('رد الخادم ليس JSON (غالباً خطأ داخل السكربت). افتح الرابط في المتصفح لمعرفة الخطأ');
+      }
+    }
+
+    function explainNetworkError(err) {
+      if (err && err.name === 'AbortError') return 'انتهت مهلة الاتصال، حاول مرة أخرى';
+      if (err instanceof TypeError) {
+        return 'تعذر الوصول للخادم: تأكد أن النشر Anyone وأنك أعدت النشر بنسخة جديدة (New version)';
+      }
+      return err && err.message ? err.message : 'خطأ غير معروف';
+    }
+
+    async function apiGet(params) {
+      const sep = state.apiUrl.includes('?') ? '&' : '?';
+      const url = state.apiUrl + sep + new URLSearchParams(params).toString();
+      const res = await fetchWithTimeout(url, { method: 'GET', redirect: 'follow', cache: 'no-store' });
+      return parseApiResponse(res);
+    }
+
+    async function apiPost(payload) {
+      const res = await fetchWithTimeout(state.apiUrl, {
+        method: 'POST',
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      return parseApiResponse(res);
+    }
+
     // حالة التطبيق المركزية
     const state = {
       apiUrl: localStorage.getItem('dental_api_url') || (DEFAULT_SCRIPT_URL.startsWith('http') ? DEFAULT_SCRIPT_URL : ''),
@@ -560,8 +608,8 @@
 
       try {
         const [patientsRes, summaryRes] = await Promise.all([
-          fetch(`${state.apiUrl}?action=getPatients`).then(r => r.json()),
-          fetch(`${state.apiUrl}?action=getFinancialSummary`).then(r => r.json())
+          apiGet({ action: 'getPatients' }),
+          apiGet({ action: 'getFinancialSummary' })
         ]);
 
         if (patientsRes.status === 'success') state.patients = patientsRes.data;
@@ -570,7 +618,7 @@
         statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-300 inline-block"></span><span>متصل بـ Google Sheets</span>`;
         renderAllViews();
       } catch (err) {
-        showToast('تعذر الاتصال بالسحابة، تأكد من رابط Web App أو الإنترنت');
+        showToast(explainNetworkError(err));
         statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400 inline-block"></span><span>خطأ في الاتصال</span>`;
       } finally {
         icon.classList.remove('animate-spin');
@@ -785,14 +833,14 @@
       }
 
       try {
-        const res = await fetch(`${state.apiUrl}?action=getPatientHistory&patientId=${encodeURIComponent(patientId)}`).then(r => r.json());
+        const res = await apiGet({ action: 'getPatientHistory', patientId });
         if (res.status === 'success') {
           renderHistoryItems(res.data);
         } else {
           historyContainer.innerHTML = `<div class="text-xs text-rose-500 py-3 text-center">${res.message}</div>`;
         }
       } catch (e) {
-        historyContainer.innerHTML = `<div class="text-xs text-rose-500 py-3 text-center">تعذر جلب السجل</div>`;
+        historyContainer.innerHTML = `<div class="text-xs text-rose-500 py-3 text-center">${escapeHtml(explainNetworkError(e))}</div>`;
       }
     }
 
@@ -873,11 +921,7 @@
         }
 
         // نستخدم text/plain لتفادي طلبات CORS Preflight في Google Apps Script
-        const response = await fetch(state.apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        }).then(r => r.json());
+        const response = await apiPost(payload);
 
         if (response.status === 'success') {
           closeModal('addPatientModal');
@@ -887,7 +931,7 @@
           showToast('خطأ: ' + response.message);
         }
       } catch (err) {
-        showToast('حدث خطأ أثناء الاتصال بالخادم');
+        showToast(explainNetworkError(err));
       } finally {
         btn.disabled = false;
         btn.innerHTML = originalHtml;
@@ -972,11 +1016,7 @@
           });
           refreshAllData();
         } else {
-          const response = await fetch(state.apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-          }).then(r => r.json());
+          const response = await apiPost(payload);
 
           if (response.status !== 'success') {
             throw new Error(response.message || 'فشل الحفظ');
@@ -1002,7 +1042,7 @@
         document.getElementById('quickPaymentForm').classList.add('hidden');
         document.getElementById('paymentSuccessView').classList.remove('hidden');
       } catch (err) {
-        showToast('تعذر حفظ الدفعة: ' + err.message);
+        showToast('تعذر حفظ الدفعة: ' + explainNetworkError(err));
       } finally {
         btn.disabled = false;
         btn.innerHTML = originalHtml;
