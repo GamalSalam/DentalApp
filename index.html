@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0d9488" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>حسابات العيادة | نظام إدارة عيادة الأسنان</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json" />
+  
+  <!-- Google Fonts: Cairo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Cairo', 'sans-serif'],
+          },
+          colors: {
+            medical: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              800: '#115e59',
+              900: '#134e4a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .safe-bottom {
+      padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+    }
+    /* شريط تمرير أنيق */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen safe-bottom">
+
+  <!-- الشريط العلوي (App Header) -->
+  <header class="sticky top-0 z-30 bg-gradient-to-l from-teal-700 to-teal-600 text-white shadow-md">
+    <div class="max-w-md mx-auto px-4 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shadow-inner">
+          <!-- أيقونة السن -->
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 3C4.239 3 2 5.239 2 8c0 2.254 1.187 4.212 2.345 6.082C5.45 15.865 6.5 18.25 7.5 21c.6 0 1.25-2.5 2-4.5.5-1.333 1.25-2 2.5-2s2 .667 2.5 2c.75 2 1.4 4.5 2 4.5 1-2.75 2.05-5.135 3.155-6.918C20.813 12.212 22 10.254 22 8c0-2.761-2.239-5-5-5-1.806 0-3.32.893-5 1.8C10.32 3.893 8.806 3 7 3z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight">حسابات العيادة</h1>
+          <p id="connectionStatus" class="text-xs text-teal-100 flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-emerald-300 inline-block animate-pulse"></span>
+            <span>متصل بالسحابة</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <!-- زر تحديث البيانات -->
+        <button onclick="refreshAllData()" id="refreshBtn" title="تحديث البيانات" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition">
+          <svg id="refreshIcon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+        <!-- زر إعدادات الربط -->
+        <button onclick="openSettingsModal()" title="إعدادات الربط والعيادة" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- تنبيه إذا لم يتم ضبط رابط Google Apps Script بعد -->
+  <div id="apiWarningBanner" class="hidden max-w-md mx-auto mt-3 px-4">
+    <div class="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 flex items-start justify-between gap-3 shadow-sm">
+      <div class="text-xs text-amber-900">
+        <p class="font-bold text-sm mb-0.5">وضع العرض التجريبي (بيانات محلية)</p>
+        <p>لربط التطبيق مع Google Sheets الخاص بك، اضغط على زر الضبط وأدخل رابط Web App URL.</p>
+      </div>
+      <button onclick="openSettingsModal()" class="shrink-0 bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-amber-700">
+        ربط الآن
+      </button>
+    </div>
+  </div>
+
+  <!-- محتوى التطبيق الرئيسي -->
+  <main class="max-w-md mx-auto px-4 pt-4 space-y-5">
+
+    <!-- ==================== التبويب الأول: الرئيسية (Dashboard) ==================== -->
+    <section id="tab-dashboard" class="space-y-5">
+      <!-- أزرار الإجراءات السريعة -->
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="openQuickPaymentModal()" class="flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-bold py-3.5 px-4 rounded-2xl shadow-md shadow-teal-600/20 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+          </svg>
+          <span>تسجيل دفعة</span>
+        </button>
+        <button onclick="openAddPatientModal()" class="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 active:scale-98 text-teal-700 border border-teal-200 font-bold py-3.5 px-4 rounded-2xl shadow-sm transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+          </svg>
+          <span>مريض جديد</span>
+        </button>
+      </div>
+
+      <!-- الكروت الإحصائية -->
+      <div class="grid grid-cols-2 gap-3">
+        <!-- إيراد اليوم -->
+        <div class="col-span-2 bg-gradient-to-l from-emerald-600 to-teal-600 text-white rounded-2xl p-4 shadow-md flex items-center justify-between">
+          <div>
+            <p class="text-xs text-teal-100 font-semibold">إيراد اليوم المحصّل</p>
+            <h2 class="text-3xl font-extrabold mt-1"><span id="statTodayIncome">0</span> <span class="text-sm font-normal" id="currencyLabel1">ج.م</span></h2>
+          </div>
+          <div class="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- إجمالي المديونيات المعلقة -->
+        <div onclick="switchTab('debts')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:border-rose-200 transition">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-slate-500">إجمالي المتبقي</span>
+            <span class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          </div>
+          <p class="text-xl font-extrabold text-rose-600"><span id="statTotalDebts">0</span> <span class="text-xs font-semibold" id="currencyLabel2">ج.م</span></p>
+        </div>
+
+        <!-- عدد الحالات التي عليها متبقي -->
+        <div onclick="switchTab('debts')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:border-amber-200 transition">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-slate-500">حالات عليها أقساط</span>
+            <span class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </span>
+          </div>
+          <p class="text-xl font-extrabold text-slate-800"><span id="statDebtorsCount">0</span> <span class="text-xs font-semibold text-slate-500">مريض</span></p>
+        </div>
+      </div>
+
+      <!-- قائمة آخر دفعات اليوم -->
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between">
+          <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-teal-500"></span>
+            <span>آخر الدفعات المسجلة اليوم</span>
+          </h3>
+          <span id="todayPaymentsCountBadge" class="text-xs bg-teal-50 text-teal-700 font-bold px-2.5 py-0.5 rounded-full">0 دفعة</span>
+        </div>
+        <div id="todayPaymentsList" class="divide-y divide-slate-100">
+          <!-- يتم تعبئتها ديناميكياً -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== التبويب الثاني: المرضى (Patients Directory) ==================== -->
+    <section id="tab-patients" class="hidden space-y-4">
+      <!-- شريط البحث + زر إضافة -->
+      <div class="flex gap-2">
+        <div class="relative flex-1">
+          <input
+            type="text"
+            id="patientSearchInput"
+            oninput="renderPatientsList()"
+            placeholder="ابحث باسم المريض أو رقم الهاتف..."
+            class="w-full bg-white border border-slate-200 rounded-2xl pr-10 pl-4 py-3 text-sm focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 shadow-sm"
+          />
+          <svg class="w-5 h-5 text-slate-400 absolute right-3.5 top-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+        <button onclick="openAddPatientModal()" class="bg-teal-600 hover:bg-teal-700 text-white px-4 rounded-2xl font-bold text-sm flex items-center gap-1.5 shadow-sm shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          <span>إضافة</span>
+        </button>
+      </div>
+
+      <!-- قائمة بطاقات المرضى -->
+      <div id="patientsContainer" class="space-y-3">
+        <!-- يتم تعبئتها ديناميكياً -->
+      </div>
+    </section>
+
+    <!-- ==================== التبويب الثالث: المديونيات (Debts Tab) ==================== -->
+    <section id="tab-debts" class="hidden space-y-4">
+      <div class="bg-rose-50 border border-rose-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-bold text-rose-900">قائمة الأقساط والمديونيات المعلقة</h3>
+          <p class="text-xs text-rose-700">مرتبة تنازلياً حسب المبلغ المتبقي</p>
+        </div>
+        <span id="debtsTabTotalBadge" class="bg-rose-600 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl">0 ج.م</span>
+      </div>
+
+      <div id="debtsContainer" class="space-y-3">
+        <!-- يتم تعبئتها ديناميكياً -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== شريط التنقل السفلي (Bottom Navigation Bar) ==================== -->
+  <nav class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 shadow-lg">
+    <div class="max-w-md mx-auto grid grid-cols-3 h-16">
+      <!-- الرئيسية -->
+      <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center gap-1 text-teal-600 font-bold transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+        <span class="text-xs">الرئيسية</span>
+      </button>
+
+      <!-- المرضى -->
+      <button onclick="switchTab('patients')" id="nav-patients" class="flex flex-col items-center justify-center gap-1 text-slate-400 font-semibold transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span class="text-xs">المرضى</span>
+      </button>
+
+      <!-- المديونيات -->
+      <button onclick="switchTab('debts')" id="nav-debts" class="relative flex flex-col items-center justify-center gap-1 text-slate-400 font-semibold transition">
+        <span id="navDebtsBadge" class="hidden absolute top-1.5 right-1/3 bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">0</span>
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+        </svg>
+        <span class="text-xs">المديونيات</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ==================== نافذة إضافة مريض جديد (Add Patient Modal) ==================== -->
+  <div id="addPatientModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="font-extrabold text-base text-slate-800">إضافة ملف مريض جديد</h3>
+        <button onclick="closeModal('addPatientModal')" class="p-1.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200">✕</button>
+      </div>
+
+      <form id="addPatientForm" onsubmit="submitNewPatient(event)" class="space-y-3.5 mt-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">اسم المريض بالكامل *</label>
+          <input type="text" id="newPatientName" required placeholder="مثال: أحمد محمد علي" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">رقم الهاتف (مع كود الدولة للواتساب) *</label>
+          <input type="tel" id="newPatientPhone" required placeholder="مثال: 201012345678" dir="ltr" class="w-full text-right border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">الإجراء الطبي / خطة العلاج *</label>
+          <input type="text" id="newPatientTreatment" required placeholder="مثال: حشو عصب + طربوش زيركون" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">إجمالي التكلفة *</label>
+            <input type="number" id="newPatientTotalCost" required min="0" step="any" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">دفعة مقدمة اليوم (اختياري)</label>
+            <input type="number" id="newPatientInitialPayment" min="0" step="any" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">طريقة دفع المقدم</label>
+          <select id="newPatientPaymentMethod" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-600">
+            <option value="كاش">كاش (نقدي)</option>
+            <option value="محفظة">محفظة إلكترونية / إنستاباي</option>
+            <option value="فيزا">فيزا / بطاقة بنكية</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">ملاحظات طبية أو مالية</label>
+          <textarea id="newPatientNotes" rows="2" placeholder="أي تفاصيل إضافية..." class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-teal-600"></textarea>
+        </div>
+
+        <button type="submit" id="savePatientBtn" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3.5 rounded-2xl shadow-md flex items-center justify-center gap-2 transition">
+          <span>حفظ ملف المريض</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== نافذة تسجيل دفعة سريعة (Quick Payment Modal) ==================== -->
+  <div id="quickPaymentModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="font-extrabold text-base text-slate-800">تسجيل دفعة مالية</h3>
+        <button onclick="closeModal('quickPaymentModal')" class="p-1.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200">✕</button>
+      </div>
+
+      <!-- نموذج الإدخال -->
+      <form id="quickPaymentForm" onsubmit="submitQuickPayment(event)" class="space-y-4 mt-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">اختر المريض *</label>
+          <select id="paymentPatientSelect" required onchange="updateSelectedPatientDebtHint()" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-600">
+            <option value="">-- اختر المريض --</option>
+          </select>
+          <p id="selectedPatientDebtHint" class="text-xs text-teal-700 font-semibold mt-1.5 hidden"></p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">المبلغ المدفوع *</label>
+            <input type="number" id="paymentAmountInput" required min="1" step="any" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold focus:outline-none focus:border-teal-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">طريقة الدفع *</label>
+            <select id="paymentMethodInput" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-600">
+              <option value="كاش">كاش</option>
+              <option value="محفظة">محفظة</option>
+              <option value="فيزا">فيزا</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">بيان / ملاحظات الدفعة</label>
+          <input type="text" id="paymentNotesInput" placeholder="مثال: قسط جلسه التقويم الثانية" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
+
+        <button type="submit" id="savePaymentBtn" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3.5 rounded-2xl shadow-md flex items-center justify-center gap-2 transition">
+          <span>تأكيد وحفظ الدفعة</span>
+        </button>
+      </form>
+
+      <!-- شاشة النجاح وإرسال إيصال واتساب -->
+      <div id="paymentSuccessView" class="hidden text-center py-4 space-y-4">
+        <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+          <svg class="w-9 h-9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div>
+          <h4 class="font-extrabold text-lg text-slate-800">تم حفظ الدفعة بنجاح!</h4>
+          <p id="paymentReceiptSummary" class="text-xs text-slate-500 mt-1"></p>
+        </div>
+        <div class="space-y-2.5 pt-2">
+          <a id="whatsappReceiptBtn" href="#" target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl shadow flex items-center justify-center gap-2">
+            <span>إرسال وصل استلام عبر واتساب</span>
+          </a>
+          <button onclick="closeModal('quickPaymentModal')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-2xl text-sm">
+            إغلاق
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== نافذة تفاصيل المريض وسجل دفعاته (Patient History Modal) ==================== -->
+  <div id="patientDetailsModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl max-h-[92vh] overflow-y-auto space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div>
+          <h3 id="detailPatientName" class="font-extrabold text-base text-slate-800">اسم المريض</h3>
+          <p id="detailPatientTreatment" class="text-xs text-teal-700 font-semibold"></p>
+        </div>
+        <button onclick="closeModal('patientDetailsModal')" class="p-1.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200">✕</button>
+      </div>
+
+      <!-- ملخص الحساب داخل الملف -->
+      <div class="grid grid-cols-3 gap-2 text-center bg-slate-50 p-3 rounded-2xl border border-slate-200/70">
+        <div>
+          <span class="text-[11px] text-slate-500 block">الإجمالي</span>
+          <strong id="detailTotalCost" class="text-sm font-extrabold text-slate-800">0</strong>
+        </div>
+        <div class="border-x border-slate-200">
+          <span class="text-[11px] text-slate-500 block">المدفوع</span>
+          <strong id="detailTotalPaid" class="text-sm font-extrabold text-emerald-600">0</strong>
+        </div>
+        <div>
+          <span class="text-[11px] text-slate-500 block">المتبقي</span>
+          <strong id="detailRemaining" class="text-sm font-extrabold text-rose-600">0</strong>
+        </div>
+      </div>
+
+      <!-- أزرار سريعة داخل ملف المريض -->
+      <div class="flex gap-2">
+        <button id="detailAddPaymentBtn" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm">
+          <span>+ تسجيل دفعة لهذا المريض</span>
+        </button>
+        <a id="detailCallBtn" href="#" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center">
+          اتصال
+        </a>
+      </div>
+
+      <!-- سجل الدفعات -->
+      <div>
+        <h4 class="text-xs font-bold text-slate-500 mb-2">سجل الدفعات السابقة:</h4>
+        <div id="patientHistoryList" class="space-y-2 max-h-60 overflow-y-auto">
+          <!-- يتم تعبئتها ديناميكياً -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== نافذة إعدادات الربط (Settings Modal) ==================== -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="font-extrabold text-base text-slate-800">إعدادات العيادة والربط السحابي</h3>
+        <button onclick="closeModal('settingsModal')" class="p-1.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200">✕</button>
+      </div>
+
+      <form onsubmit="saveSettings(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">اسم العيادة (يظهر في رسائل واتساب)</label>
+          <input type="text" id="settingClinicName" placeholder="عيادة النور لطب الأسنان" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">العملة</label>
+          <input type="text" id="settingCurrency" placeholder="ج.م / ر.س / د.ع" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">رابط Google Apps Script Web App URL</label>
+          <input type="url" id="settingApiUrl" dir="ltr" placeholder="https://script.google.com/macros/s/.../exec" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-teal-600" />
+          <p class="text-[11px] text-slate-400 mt-1">الصق الرابط الناتج بعد عمل Deploy لملف Code.gs.</p>
+        </div>
+
+        <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-2xl shadow-md text-sm">
+          حفظ الإعدادات ومزامنة البيانات
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 hidden bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-lg"></div>
+
+  <!-- ==================== منطق التطبيق (Vanilla JavaScript) ==================== -->
+  <script>
+    /**
+     * ضع رابط الـ Web App الخاص بك هنا مباشرة، أو أدخله من أيقونة الإعدادات داخل التطبيق
+     */
+    const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYNHPPJai-5yJX8yb7-8ORvnN7ZQSwE5saOEawAP2gbR_IaOHMSwxe6ZPK9Jaw8mAd/exec';
+
+    // حالة التطبيق المركزية
+    const state = {
+      apiUrl: localStorage.getItem('dental_api_url') || (DEFAULT_SCRIPT_URL.startsWith('http') ? DEFAULT_SCRIPT_URL : ''),
+      clinicName: localStorage.getItem('dental_clinic_name') || 'عيادة الأسنان التخصصية',
+      currency: localStorage.getItem('dental_currency') || 'ج.م',
+      patients: [],
+      summary: {
+        todayIncome: 0,
+        totalDebts: 0,
+        debtorsCount: 0,
+        debtors: [],
+        todayPayments: []
+      }
+    };
+
+    // بيانات تجريبية تعمل تلقائياً قبل ربط الشيت لمعاينة النظام فوراً
+    const demoData = {
+      patients: [
+        { Patient_ID: 'PAT-101', Name: 'أحمد محمود عبد الرحمن', Phone: '201001234567', Treatment_Type: 'زراعة ضرس + تركيبة زيركون', Total_Cost: 8500, Total_Paid: 5000, Remaining: 3500, Start_Date: '2026-10-15', Status: 'مستمر', Notes: 'جلسة التركيب الأسبوع القادم' },
+        { Patient_ID: 'PAT-102', Name: 'سارة خالد العتيبي', Phone: '201112345678', Treatment_Type: 'تقويم أسنان شامل', Total_Cost: 14000, Total_Paid: 9000, Remaining: 5000, Start_Date: '2026-09-01', Status: 'مستمر', Notes: 'قسط شهري 1000' },
+        { Patient_ID: 'PAT-103', Name: 'محمد سعيد الشامي', Phone: '201223456789', Treatment_Type: 'حشو عصب وتنظيف جير', Total_Cost: 2200, Total_Paid: 2200, Remaining: 0, Start_Date: '2026-10-20', Status: 'مكتمل', Notes: '' }
+      ],
+      todayPayments: [
+        { Payment_ID: 'PAY-501', Patient_ID: 'PAT-101', Patient_Name: 'أحمد محمود عبد الرحمن', Amount_Paid: 1500, Payment_Date: 'اليوم 01:30 م', Payment_Method: 'كاش', Notes: 'دفعة ثانية' },
+        { Payment_ID: 'PAY-502', Patient_ID: 'PAT-102', Patient_Name: 'سارة خالد العتيبي', Amount_Paid: 1000, Payment_Date: 'اليوم 11:15 ص', Payment_Method: 'محفظة', Notes: 'قسط أكتوبر' }
+      ]
+    };
+
+    // تشغيل التطبيق عند التحميل
+    document.addEventListener('DOMContentLoaded', () => {
+      updateCurrencyLabels();
+      refreshAllData();
+      registerServiceWorker();
+    });
+
+    function updateCurrencyLabels() {
+      document.getElementById('currencyLabel1').textContent = state.currency;
+      document.getElementById('currencyLabel2').textContent = state.currency;
+    }
+
+    /**
+     * التبديل بين التبويبات السفلية
+     */
+    function switchTab(tabName) {
+      ['dashboard', 'patients', 'debts'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        const navBtn = document.getElementById(`nav-${t}`);
+        navBtn.classList.remove('text-teal-600', 'font-bold');
+        navBtn.classList.add('text-slate-400', 'font-semibold');
+      });
+
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`nav-${tabName}`);
+      activeBtn.classList.remove('text-slate-400', 'font-semibold');
+      activeBtn.classList.add('text-teal-600', 'font-bold');
+    }
+
+    /**
+     * جلب وتحديث كافة البيانات من Google Apps Script أو من الوضع التجريبي
+     */
+    async function refreshAllData() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('animate-spin');
+
+      const warningBanner = document.getElementById('apiWarningBanner');
+      const statusEl = document.getElementById('connectionStatus');
+
+      if (!state.apiUrl) {
+        warningBanner.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-300 inline-block"></span><span>وضع المعاينة التجريبي</span>`;
+        loadDemoState();
+        renderAllViews();
+        icon.classList.remove('animate-spin');
+        return;
+      }
+
+      warningBanner.classList.add('hidden');
+      statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-300 inline-block animate-pulse"></span><span>جاري المزامنة...</span>`;
+
+      try {
+        const [patientsRes, summaryRes] = await Promise.all([
+          fetch(`${state.apiUrl}?action=getPatients`).then(r => r.json()),
+          fetch(`${state.apiUrl}?action=getFinancialSummary`).then(r => r.json())
+        ]);
+
+        if (patientsRes.status === 'success') state.patients = patientsRes.data;
+        if (summaryRes.status === 'success') state.summary = summaryRes.data;
+
+        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-300 inline-block"></span><span>متصل بـ Google Sheets</span>`;
+        renderAllViews();
+      } catch (err) {
+        showToast('تعذر الاتصال بالسحابة، تأكد من رابط Web App أو الإنترنت');
+        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400 inline-block"></span><span>خطأ في الاتصال</span>`;
+      } finally {
+        icon.classList.remove('animate-spin');
+      }
+    }
+
+    function loadDemoState() {
+      state.patients = [...demoData.patients];
+      const debtors = state.patients.filter(p => p.Remaining > 0).sort((a, b) => b.Remaining - a.Remaining);
+      const totalDebts = debtors.reduce((s, p) => s + p.Remaining, 0);
+      const todayIncome = demoData.todayPayments.reduce((s, p) => s + p.Amount_Paid, 0);
+      state.summary = {
+        todayIncome,
+        totalDebts,
+        debtorsCount: debtors.length,
+        debtors,
+        todayPayments: [...demoData.todayPayments]
+      };
+    }
+
+    function renderAllViews() {
+      renderDashboard();
+      renderPatientsList();
+      renderDebtsList();
+      populatePatientSelect();
+    }
+
+    /**
+     * رسم لوحة التحكم الرئيسية
+     */
+    function renderDashboard() {
+      document.getElementById('statTodayIncome').textContent = formatNumber(state.summary.todayIncome);
+      document.getElementById('statTotalDebts').textContent = formatNumber(state.summary.totalDebts);
+      document.getElementById('statDebtorsCount').textContent = state.summary.debtorsCount;
+
+      const navBadge = document.getElementById('navDebtsBadge');
+      if (state.summary.debtorsCount > 0) {
+        navBadge.textContent = state.summary.debtorsCount;
+        navBadge.classList.remove('hidden');
+      } else {
+        navBadge.classList.add('hidden');
+      }
+
+      const listEl = document.getElementById('todayPaymentsList');
+      const payments = state.summary.todayPayments || [];
+      document.getElementById('todayPaymentsCountBadge').textContent = `${payments.length} دفعة`;
+
+      if (payments.length === 0) {
+        listEl.innerHTML = `
+          <div class="p-8 text-center text-slate-400 text-xs">
+            لا توجد دفعات مسجلة اليوم حتى الآن.
+          </div>`;
+        return;
+      }
+
+      listEl.innerHTML = payments.map(pay => `
+        <div class="p-3.5 flex items-center justify-between hover:bg-slate-50">
+          <div>
+            <p class="font-bold text-sm text-slate-800">${escapeHtml(pay.Patient_Name)}</p>
+            <p class="text-xs text-slate-400 mt-0.5">${escapeHtml(pay.Payment_Date)} • <span class="text-teal-700 font-semibold">${escapeHtml(pay.Payment_Method)}</span> ${pay.Notes ? '• ' + escapeHtml(pay.Notes) : ''}</p>
+          </div>
+          <div class="text-left">
+            <span class="font-extrabold text-sm text-emerald-600">+${formatNumber(pay.Amount_Paid)} ${state.currency}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    /**
+     * رسم دليل المرضى مع الفلترة الفورية
+     */
+    function renderPatientsList() {
+      const query = (document.getElementById('patientSearchInput').value || '').trim().toLowerCase();
+      const container = document.getElementById('patientsContainer');
+
+      const filtered = state.patients.filter(p =>
+        p.Name.toLowerCase().includes(query) || String(p.Phone).includes(query)
+      );
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm border border-slate-200/70">
+            لا توجد نتائج مطابقة للبحث.
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(p => {
+        const percent = p.Total_Cost > 0 ? Math.min(100, Math.round((p.Total_Paid / p.Total_Cost) * 100)) : 100;
+        const isCompleted = p.Remaining <= 0;
+
+        return `
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+            <div class="flex items-start justify-between">
+              <div onclick="openPatientDetails('${p.Patient_ID}')" class="cursor-pointer">
+                <h4 class="font-extrabold text-sm text-slate-800 hover:text-teal-700">${escapeHtml(p.Name)}</h4>
+                <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(p.Treatment_Type)}</p>
+              </div>
+              <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${isCompleted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">
+                ${isCompleted ? 'خالص الحساب' : 'متبقي ' + formatNumber(p.Remaining) + ' ' + state.currency}
+              </span>
+            </div>
+
+            <!-- شريط تقدم السداد -->
+            <div>
+              <div class="flex justify-between text-[11px] text-slate-500 mb-1">
+                <span>تم سداد ${formatNumber(p.Total_Paid)} من ${formatNumber(p.Total_Cost)} ${state.currency}</span>
+                <span class="font-bold text-teal-700">${percent}%</span>
+              </div>
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full ${isCompleted ? 'bg-emerald-500' : 'bg-teal-600'} rounded-full transition-all" style="width: ${percent}%"></div>
+              </div>
+            </div>
+
+            <div class="pt-1 flex items-center justify-between gap-2 border-t border-slate-100">
+              <button onclick="openPatientDetails('${p.Patient_ID}')" class="text-xs font-bold text-slate-600 hover:text-teal-700 py-1.5 px-2">
+                سجل الدفعات والتفاصيل
+              </button>
+              <div class="flex gap-1.5">
+                ${!isCompleted ? `
+                  <button onclick="openQuickPaymentModal('${p.Patient_ID}')" class="bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold px-3 py-1.5 rounded-xl">
+                    + دفعة
+                  </button>
+                ` : ''}
+                <a href="tel:${p.Phone}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-xl">
+                  اتصال
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /**
+     * رسم قائمة المديونيات مع أزرار الاتصال والواتساب الجاهز
+     */
+    function renderDebtsList() {
+      const container = document.getElementById('debtsContainer');
+      const debtors = state.patients.filter(p => p.Remaining > 0).sort((a, b) => b.Remaining - a.Remaining);
+      const totalDebts = debtors.reduce((s, p) => s + p.Remaining, 0);
+
+      document.getElementById('debtsTabTotalBadge').textContent = `${formatNumber(totalDebts)} ${state.currency}`;
+
+      if (debtors.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center text-emerald-600 font-bold text-sm border border-slate-200/70">
+            ممتاز! لا توجد أي مديونيات معلقة حالياً.
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = debtors.map(p => {
+        const waMessage = `مرحباً أ/ ${p.Name}،\nنود تذكيركم بموعد سداد القسط المتبقي لحسابكم في ${state.clinicName} (${p.Treatment_Type}).\n• إجمالي التكلفة: ${formatNumber(p.Total_Cost)} ${state.currency}\n• المدفوع: ${formatNumber(p.Total_Paid)} ${state.currency}\n• الرصيد المتبقي: ${formatNumber(p.Remaining)} ${state.currency}\nمع تمنياتنا لكم بدوام الصحة والعافية.`;
+        const waLink = `https://wa.me/${cleanPhone(p.Phone)}?text=${encodeURIComponent(waMessage)}`;
+
+        return `
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+            <div class="flex items-start justify-between">
+              <div onclick="openPatientDetails('${p.Patient_ID}')" class="cursor-pointer">
+                <h4 class="font-extrabold text-sm text-slate-800">${escapeHtml(p.Name)}</h4>
+                <p class="text-xs text-slate-500">${escapeHtml(p.Treatment_Type)}</p>
+              </div>
+              <div class="text-left">
+                <span class="text-[11px] text-slate-400 block">المتبقي</span>
+                <span class="font-extrabold text-base text-rose-600">${formatNumber(p.Remaining)} ${state.currency}</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+              <button onclick="openQuickPaymentModal('${p.Patient_ID}')" class="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1">
+                <span>تسديد دفعة</span>
+              </button>
+              <a href="tel:${p.Phone}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1">
+                <span>اتصال مباشر</span>
+              </a>
+              <a href="${waLink}" target="_blank" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1">
+                <span>تذكير واتساب</span>
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /**
+     * فتح نافذة تفاصيل المريض وسجل الدفعات
+     */
+    async function openPatientDetails(patientId) {
+      const patient = state.patients.find(p => p.Patient_ID === patientId);
+      if (!patient) return;
+
+      document.getElementById('detailPatientName').textContent = patient.Name;
+      document.getElementById('detailPatientTreatment').textContent = `${patient.Treatment_Type} • ${patient.Phone}`;
+      document.getElementById('detailTotalCost').textContent = `${formatNumber(patient.Total_Cost)} ${state.currency}`;
+      document.getElementById('detailTotalPaid').textContent = `${formatNumber(patient.Total_Paid)} ${state.currency}`;
+      document.getElementById('detailRemaining').textContent = `${formatNumber(patient.Remaining)} ${state.currency}`;
+      document.getElementById('detailCallBtn').href = `tel:${patient.Phone}`;
+      document.getElementById('detailAddPaymentBtn').onclick = () => {
+        closeModal('patientDetailsModal');
+        openQuickPaymentModal(patient.Patient_ID);
+      };
+
+      const historyContainer = document.getElementById('patientHistoryList');
+      historyContainer.innerHTML = `<div class="text-xs text-slate-400 py-4 text-center">جاري تحميل السجل...</div>`;
+      document.getElementById('patientDetailsModal').classList.remove('hidden');
+
+      if (!state.apiUrl) {
+        const localHistory = demoData.todayPayments.filter(pay => pay.Patient_ID === patientId);
+        renderHistoryItems(localHistory);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${state.apiUrl}?action=getPatientHistory&patientId=${encodeURIComponent(patientId)}`).then(r => r.json());
+        if (res.status === 'success') {
+          renderHistoryItems(res.data);
+        } else {
+          historyContainer.innerHTML = `<div class="text-xs text-rose-500 py-3 text-center">${res.message}</div>`;
+        }
+      } catch (e) {
+        historyContainer.innerHTML = `<div class="text-xs text-rose-500 py-3 text-center">تعذر جلب السجل</div>`;
+      }
+    }
+
+    function renderHistoryItems(items) {
+      const container = document.getElementById('patientHistoryList');
+      if (!items || items.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-400 py-4 text-center bg-slate-50 rounded-xl">لا توجد دفعات مسجلة لهذا المريض.</div>`;
+        return;
+      }
+      container.innerHTML = items.map(item => `
+        <div class="bg-slate-50 border border-slate-200/60 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-slate-700">${escapeHtml(item.Payment_Date)} (${escapeHtml(item.Payment_Method)})</p>
+            <p class="text-[11px] text-slate-500">${escapeHtml(item.Notes || 'دفعة نقدية')}</p>
+          </div>
+          <span class="font-extrabold text-sm text-emerald-600">${formatNumber(item.Amount_Paid)} ${state.currency}</span>
+        </div>
+      `).join('');
+    }
+
+    /**
+     * إضافة مريض جديد
+     */
+    function openAddPatientModal() {
+      document.getElementById('addPatientForm').reset();
+      document.getElementById('addPatientModal').classList.remove('hidden');
+    }
+
+    async function submitNewPatient(e) {
+      e.preventDefault();
+      const btn = document.getElementById('savePatientBtn');
+      const originalHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span><span>جاري الحفظ...</span>`;
+
+      const payload = {
+        action: 'addPatient',
+        Name: document.getElementById('newPatientName').value.trim(),
+        Phone: document.getElementById('newPatientPhone').value.trim(),
+        Treatment_Type: document.getElementById('newPatientTreatment').value.trim(),
+        Total_Cost: parseFloat(document.getElementById('newPatientTotalCost').value) || 0,
+        Initial_Payment: parseFloat(document.getElementById('newPatientInitialPayment').value) || 0,
+        Payment_Method: document.getElementById('newPatientPaymentMethod').value,
+        Notes: document.getElementById('newPatientNotes').value.trim()
+      };
+
+      try {
+        if (!state.apiUrl) {
+          // حفظ في الوضع التجريبي
+          const newId = 'PAT-' + Date.now();
+          demoData.patients.unshift({
+            Patient_ID: newId,
+            Name: payload.Name,
+            Phone: payload.Phone,
+            Treatment_Type: payload.Treatment_Type,
+            Total_Cost: payload.Total_Cost,
+            Total_Paid: payload.Initial_Payment,
+            Remaining: Math.max(0, payload.Total_Cost - payload.Initial_Payment),
+            Start_Date: 'اليوم',
+            Status: 'مستمر',
+            Notes: payload.Notes
+          });
+          if (payload.Initial_Payment > 0) {
+            demoData.todayPayments.unshift({
+              Payment_ID: 'PAY-' + Date.now(),
+              Patient_ID: newId,
+              Patient_Name: payload.Name,
+              Amount_Paid: payload.Initial_Payment,
+              Payment_Date: 'الآن',
+              Payment_Method: payload.Payment_Method,
+              Notes: 'دفعة مقدمة'
+            });
+          }
+          closeModal('addPatientModal');
+          showToast('تمت إضافة المريض بنجاح');
+          refreshAllData();
+          return;
+        }
+
+        // نستخدم text/plain لتفادي طلبات CORS Preflight في Google Apps Script
+        const response = await fetch(state.apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        }).then(r => r.json());
+
+        if (response.status === 'success') {
+          closeModal('addPatientModal');
+          showToast('تم حفظ ملف المريض في Google Sheets');
+          await refreshAllData();
+        } else {
+          showToast('خطأ: ' + response.message);
+        }
+      } catch (err) {
+        showToast('حدث خطأ أثناء الاتصال بالخادم');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    }
+
+    /**
+     * نافذة تسجيل دفعة سريعة
+     */
+    function populatePatientSelect() {
+      const select = document.getElementById('paymentPatientSelect');
+      select.innerHTML = `<option value="">-- اختر المريض --</option>` +
+        state.patients.map(p => `<option value="${p.Patient_ID}">${escapeHtml(p.Name)} (المتبقي: ${formatNumber(p.Remaining)} ${state.currency})</option>`).join('');
+    }
+
+    function openQuickPaymentModal(preselectedPatientId = '') {
+      populatePatientSelect();
+      document.getElementById('quickPaymentForm').reset();
+      document.getElementById('quickPaymentForm').classList.remove('hidden');
+      document.getElementById('paymentSuccessView').classList.add('hidden');
+
+      if (preselectedPatientId) {
+        document.getElementById('paymentPatientSelect').value = preselectedPatientId;
+      }
+      updateSelectedPatientDebtHint();
+      document.getElementById('quickPaymentModal').classList.remove('hidden');
+    }
+
+    function updateSelectedPatientDebtHint() {
+      const patientId = document.getElementById('paymentPatientSelect').value;
+      const hint = document.getElementById('selectedPatientDebtHint');
+      const patient = state.patients.find(p => p.Patient_ID === patientId);
+
+      if (patient) {
+        hint.textContent = `الإجمالي: ${formatNumber(patient.Total_Cost)} • المدفوع: ${formatNumber(patient.Total_Paid)} • المتبقي الحالي: ${formatNumber(patient.Remaining)} ${state.currency}`;
+        hint.classList.remove('hidden');
+      } else {
+        hint.classList.add('hidden');
+      }
+    }
+
+    async function submitQuickPayment(e) {
+      e.preventDefault();
+      const btn = document.getElementById('savePaymentBtn');
+      const originalHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span><span>جاري تسجيل الدفعة...</span>`;
+
+      const patientId = document.getElementById('paymentPatientSelect').value;
+      const amount = parseFloat(document.getElementById('paymentAmountInput').value) || 0;
+      const method = document.getElementById('paymentMethodInput').value;
+      const notes = document.getElementById('paymentNotesInput').value.trim();
+
+      const patient = state.patients.find(p => p.Patient_ID === patientId);
+
+      const payload = {
+        action: 'addPayment',
+        Patient_ID: patientId,
+        Amount_Paid: amount,
+        Payment_Method: method,
+        Notes: notes
+      };
+
+      try {
+        let newRemaining = 0;
+
+        if (!state.apiUrl) {
+          // الوضع التجريبي
+          if (patient) {
+            patient.Total_Paid += amount;
+            patient.Remaining = Math.max(0, patient.Total_Cost - patient.Total_Paid);
+            newRemaining = patient.Remaining;
+          }
+          demoData.todayPayments.unshift({
+            Payment_ID: 'PAY-' + Date.now(),
+            Patient_ID: patientId,
+            Patient_Name: patient ? patient.Name : '',
+            Amount_Paid: amount,
+            Payment_Date: 'الآن',
+            Payment_Method: method,
+            Notes: notes
+          });
+          refreshAllData();
+        } else {
+          const response = await fetch(state.apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          }).then(r => r.json());
+
+          if (response.status !== 'success') {
+            throw new Error(response.message || 'فشل الحفظ');
+          }
+
+          newRemaining = response.data.Updated_Patient
+            ? response.data.Updated_Patient.Remaining
+            : Math.max(0, (patient ? patient.Remaining : 0) - amount);
+
+          await refreshAllData();
+        }
+
+        // تجهيز شاشة النجاح ورابط إيصال الواتساب
+        const patientName = patient ? patient.Name : 'المريض';
+        const patientPhone = patient ? cleanPhone(patient.Phone) : '';
+        const receiptText = `إيصال استلام دفعة - ${state.clinicName}\nمرحباً أ/ ${patientName}،\nتم استلام دفعة بمبلغ: ${formatNumber(amount)} ${state.currency} (${method}).\nالرصيد المتبقي الحالي: ${formatNumber(newRemaining)} ${state.currency}.\nشكراً لثقتكم بنا.`;
+
+        document.getElementById('paymentReceiptSummary').textContent =
+          `المريض: ${patientName} | المدفوع: ${formatNumber(amount)} ${state.currency} | المتبقي: ${formatNumber(newRemaining)} ${state.currency}`;
+        document.getElementById('whatsappReceiptBtn').href =
+          `https://wa.me/${patientPhone}?text=${encodeURIComponent(receiptText)}`;
+
+        document.getElementById('quickPaymentForm').classList.add('hidden');
+        document.getElementById('paymentSuccessView').classList.remove('hidden');
+      } catch (err) {
+        showToast('تعذر حفظ الدفعة: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    }
+
+    /**
+     * نافذة الإعدادات
+     */
+    function openSettingsModal() {
+      document.getElementById('settingClinicName').value = state.clinicName;
+      document.getElementById('settingCurrency').value = state.currency;
+      document.getElementById('settingApiUrl').value = state.apiUrl;
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function saveSettings(e) {
+      e.preventDefault();
+      state.clinicName = document.getElementById('settingClinicName').value.trim() || 'عيادة الأسنان';
+      state.currency = document.getElementById('settingCurrency').value.trim() || 'ج.م';
+      state.apiUrl = document.getElementById('settingApiUrl').value.trim();
+
+      localStorage.setItem('dental_clinic_name', state.clinicName);
+      localStorage.setItem('dental_currency', state.currency);
+      localStorage.setItem('dental_api_url', state.apiUrl);
+
+      updateCurrencyLabels();
+      closeModal('settingsModal');
+      showToast('تم حفظ الإعدادات');
+      refreshAllData();
+    }
+
+    /**
+     * دوال مساعدة
+     */
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    function formatNumber(num) {
+      return Number(num || 0).toLocaleString('en-US');
+    }
+
+    function cleanPhone(phone) {
+      let cleaned = String(phone || '').replace(/[^0-9]/g, '');
+      // إذا كان الرقم مصرياً يبدأ بـ 01 نضيف كود مصر 2 تلقائياً لتسهيل عمل واتساب
+      if (cleaned.length === 11 && cleaned.startsWith('01')) {
+        cleaned = '2' + cleaned;
+      }
+      return cleaned;
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3200);
+    }
+
+    /**
+     * تسجيل الـ Service Worker لتفعيل مزايا الـ PWA والتثبيت على الهاتف
+     */
+    function registerServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker
+            .register('./sw.js')
+            .catch(err => console.warn('SW registration skipped:', err));
+        });
+      }
+    }
+  </script>
+</body>
+</html>
