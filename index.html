@@ -6,10 +6,13 @@
   <meta name="theme-color" content="#0d9488" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>حسابات العيادة | نظام إدارة عيادة الأسنان</title>
+  <meta name="apple-mobile-web-app-title" content="حسابات العيادة" />
+  <title>حسابات العيادة | عيادات دكتور فرج الصعيدى</title>
   
   <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
   
   <!-- Google Fonts: Cairo -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -594,6 +597,22 @@
      * ضع رابط الـ Web App الخاص بك هنا مباشرة، أو أدخله من أيقونة الإعدادات داخل التطبيق
      */
     const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYbhb6GMUSiAZkd6jK4lrP5DCfINlwj2gYof6dbjathdxRF2115vJlr3Wj5y7Sg2Kn/exec';
+    const DEFAULT_CLINIC_NAME = 'عيادات دكتور فرج الصعيدى';
+
+    // ترحيل الإعدادات القديمة المخزنة على الجهاز (الرابط واسم العيادة)
+    (function migrateSettings() {
+      try {
+        if (localStorage.getItem('dental_default_url') !== DEFAULT_SCRIPT_URL) {
+          localStorage.setItem('dental_api_url', DEFAULT_SCRIPT_URL);
+          localStorage.setItem('dental_default_url', DEFAULT_SCRIPT_URL);
+          localStorage.removeItem('dental_cache_v1');
+        }
+        const cn = localStorage.getItem('dental_clinic_name');
+        if (!cn || cn === 'عيادة الأسنان التخصصية' || cn === 'عيادة الأسنان') {
+          localStorage.setItem('dental_clinic_name', DEFAULT_CLINIC_NAME);
+        }
+      } catch (e) {}
+    })();
 
 
     // ===== طبقة الاتصال بـ Google Apps Script (مع تشخيص واضح للأخطاء) =====
@@ -619,6 +638,9 @@
     }
 
     function explainNetworkError(err) {
+      if (err && /عملية POST غير معروفة/.test(err.message || '')) {
+        return 'السكربت على جوجل قديم: الصق Code.gs الجديد ثم Deploy > Manage deployments > Edit > New version';
+      }
       if (err && err.name === 'AbortError') return 'انتهت مهلة الاتصال، حاول مرة أخرى';
       if (err instanceof TypeError) {
         return 'تعذر الوصول للخادم: تأكد أن النشر Anyone وأنك أعدت النشر بنسخة جديدة (New version)';
@@ -646,7 +668,7 @@
     // حالة التطبيق المركزية
     const state = {
       apiUrl: localStorage.getItem('dental_api_url') || (DEFAULT_SCRIPT_URL.startsWith('http') ? DEFAULT_SCRIPT_URL : ''),
-      clinicName: localStorage.getItem('dental_clinic_name') || 'عيادة الأسنان التخصصية',
+      clinicName: localStorage.getItem('dental_clinic_name') || DEFAULT_CLINIC_NAME,
       currency: localStorage.getItem('dental_currency') || 'ج.م',
       patients: [],
       summary: {
@@ -1477,7 +1499,7 @@
 
     function saveSettings(e) {
       e.preventDefault();
-      state.clinicName = document.getElementById('settingClinicName').value.trim() || 'عيادة الأسنان';
+      state.clinicName = document.getElementById('settingClinicName').value.trim() || DEFAULT_CLINIC_NAME;
       state.currency = document.getElementById('settingCurrency').value.trim() || 'ج.م';
       state.apiUrl = document.getElementById('settingApiUrl').value.trim();
 

@@ -1,5 +1,5 @@
-const CACHE_NAME = 'dental-clinic-pwa-v3';
-const STATIC_ASSETS = ['./', './index.html', './manifest.json'];
+const CACHE_NAME = 'dental-clinic-pwa-v4';
+const STATIC_ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
