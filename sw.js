@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dental-clinic-pwa-v2';
+const CACHE_NAME = 'dental-clinic-pwa-v3';
 const STATIC_ASSETS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', event => {
