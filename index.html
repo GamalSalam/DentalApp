@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0d9488" />
+  <meta name="theme-color" content="#003178" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="حسابات العيادة" />
@@ -29,6 +29,24 @@
             sans: ['Cairo', 'sans-serif'],
           },
           colors: {
+            // لوحة ألوان مطابقة لأيقونة العيادة: كحلي (teal المعاد تعريفه) + تركواز مميّز (aqua)
+            teal: {
+              50: '#eef4fc',
+              100: '#d9e6f7',
+              200: '#b3cdee',
+              300: '#7fa9de',
+              400: '#4a7fc9',
+              500: '#1a5bb0',
+              600: '#004594',
+              700: '#003178',
+              800: '#002461',
+              900: '#001a45',
+            },
+            aqua: {
+              400: '#2dd4cc',
+              500: '#00b8b0',
+              600: '#009a94',
+            },
             medical: {
               50: '#f0fdfa',
               100: '#ccfbf1',
@@ -67,7 +85,7 @@
 <body class="bg-slate-50 text-slate-800 min-h-screen safe-bottom">
 
   <!-- الشريط العلوي (App Header) -->
-  <header class="sticky top-0 z-30 bg-gradient-to-l from-teal-700 to-teal-600 text-white shadow-md">
+  <header class="sticky top-0 z-30 bg-gradient-to-l from-teal-700 to-teal-600 text-white shadow-md border-b-4 border-aqua-500">
     <div class="max-w-md mx-auto px-4 py-3.5 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
         <img src="icon-512.png" alt="شعار العيادة" class="w-11 h-11 rounded-xl shadow-md object-contain" />
@@ -1357,7 +1375,7 @@
                 <span class="font-bold text-teal-700">${percent}%</span>
               </div>
               <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div class="h-full ${isCompleted ? 'bg-emerald-500' : 'bg-teal-600'} rounded-full transition-all" style="width: ${percent}%"></div>
+                <div class="h-full ${isCompleted ? 'bg-emerald-500' : 'bg-aqua-500'} rounded-full transition-all" style="width: ${percent}%"></div>
               </div>
             </div>
 
