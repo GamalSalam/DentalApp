@@ -70,12 +70,7 @@
   <header class="sticky top-0 z-30 bg-gradient-to-l from-teal-700 to-teal-600 text-white shadow-md">
     <div class="max-w-md mx-auto px-4 py-3.5 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
-        <div class="w-10 h-10 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shadow-inner">
-          <!-- أيقونة السن -->
-          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M7 3C4.239 3 2 5.239 2 8c0 2.254 1.187 4.212 2.345 6.082C5.45 15.865 6.5 18.25 7.5 21c.6 0 1.25-2.5 2-4.5.5-1.333 1.25-2 2.5-2s2 .667 2.5 2c.75 2 1.4 4.5 2 4.5 1-2.75 2.05-5.135 3.155-6.918C20.813 12.212 22 10.254 22 8c0-2.761-2.239-5-5-5-1.806 0-3.32.893-5 1.8C10.32 3.893 8.806 3 7 3z" />
-          </svg>
-        </div>
+        <img src="icon-512.png" alt="شعار العيادة" class="w-11 h-11 rounded-xl shadow-md object-contain" />
         <div>
           <h1 class="font-bold text-lg leading-tight">حسابات العيادة</h1>
           <p id="connectionStatus" class="text-xs text-teal-100 flex items-center gap-1">
@@ -312,6 +307,11 @@
         </div>
 
         <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">خصم (اختياري)</label>
+          <input type="number" id="newPatientDiscount" min="0" step="any" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
+
+        <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">طريقة دفع المقدم</label>
           <select id="newPatientPaymentMethod" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-600">
             <option value="كاش">كاش (نقدي)</option>
@@ -363,6 +363,11 @@
               <option value="فيزا">فيزا</option>
             </select>
           </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">خصم إضافي مع هذه الدفعة (اختياري)</label>
+          <input type="number" id="paymentDiscountInput" min="0" step="any" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
         </div>
 
         <div>
@@ -437,7 +442,12 @@
 
       <div class="grid grid-cols-2 gap-2">
         <button id="detailNewTreatmentBtn" type="button" class="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold py-2.5 rounded-xl text-xs">+ علاج جديد على الحساب</button>
-        <button id="detailEditBtn" type="button" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2.5 rounded-xl text-xs">✎ تعديل الحالة</button>
+        <button id="detailEditBtn" type="button" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2.5 rounded-xl text-xs">✎ تعديل بيانات المريض</button>
+      </div>
+
+      <div>
+        <h4 class="text-xs font-bold text-slate-500 mb-2">العلاجات المسجلة:</h4>
+        <div id="patientTreatmentsList" class="space-y-2 max-h-52 overflow-y-auto"></div>
       </div>
 
       <!-- سجل الدفعات -->
@@ -500,6 +510,11 @@
             <input type="number" id="tmInitialPay" min="0" step="any" oninput="updateTmPreview()" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
           </div>
         </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">خصم على هذا العلاج (اختياري)</label>
+          <input type="number" id="tmDiscount" min="0" step="any" oninput="updateTmPreview()" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">طريقة الدفع</label>
           <select id="tmMethod" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-600">
@@ -529,28 +544,62 @@
           <input type="tel" id="tmEditPhone" dir="ltr" class="w-full text-right border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">الإجراء الطبي / خطة العلاج</label>
-          <input type="text" id="tmEditType" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">إجمالي التكلفة</label>
-            <input type="number" id="tmEditCost" min="0" step="any" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">الحالة</label>
-            <select id="tmEditStatus" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-600">
-              <option value="مستمر">مستمر</option>
-              <option value="مكتمل">مكتمل</option>
-            </select>
-          </div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">حالة الملف</label>
+          <select id="tmEditStatus" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-600">
+            <option value="مستمر">مستمر</option>
+            <option value="مكتمل">مكتمل</option>
+          </select>
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">ملاحظات</label>
           <textarea id="tmEditNotes" rows="3" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-teal-600"></textarea>
         </div>
+        <p class="text-[11px] text-slate-400">لتعديل تكلفة أو خصم علاج معين: افتح ملف المريض واضغط ✎ بجانب العلاج.</p>
         <button type="button" id="tmEditSaveBtn" onclick="submitPatientEdit()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 rounded-2xl shadow-md flex items-center justify-center gap-2 transition">
           <span>حفظ التعديلات</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== تعديل علاج ==================== -->
+  <div id="treatmentEditModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div>
+          <h3 class="font-extrabold text-base text-slate-800">تعديل العلاج</h3>
+          <p id="tmeInfo" class="text-xs text-slate-500"></p>
+        </div>
+        <button onclick="closeModal('treatmentEditModal')" class="p-1.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200">✕</button>
+      </div>
+      <div class="space-y-3.5 mt-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">الإجراء الطبي *</label>
+          <input type="text" id="tmeType" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">التكلفة</label>
+            <input type="number" id="tmeCost" min="0" step="any" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">الخصم</label>
+            <input type="number" id="tmeDiscount" min="0" step="any" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">حالة العلاج</label>
+          <select id="tmeStatus" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-600">
+            <option value="مستمر">مستمر</option>
+            <option value="مكتمل">مكتمل</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">ملاحظات</label>
+          <input type="text" id="tmeNotes" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-600" />
+        </div>
+        <button type="button" id="tmeSaveBtn" onclick="submitTreatmentEdit()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 rounded-2xl shadow-md flex items-center justify-center gap-2 transition">
+          <span>حفظ العلاج</span>
         </button>
       </div>
     </div>
@@ -596,23 +645,45 @@
     /**
      * ضع رابط الـ Web App الخاص بك هنا مباشرة، أو أدخله من أيقونة الإعدادات داخل التطبيق
      */
-    const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYbhb6GMUSiAZkd6jK4lrP5DCfINlwj2gYof6dbjathdxRF2115vJlr3Wj5y7Sg2Kn/exec';
+    // رابط احتياطي فقط (لو تعذر تحميل config.json لأول مرة). الرابط الفعلي يُقرأ من config.json بجانب index.html
+    const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby3L_q60YckPNHRYj2NwwZM79ECrnAMeG65H1Ef2QbWmy6dB7BrhOjtZIUFIuYWLZVc/exec';
     const DEFAULT_CLINIC_NAME = 'عيادات دكتور فرج الصعيدى';
+    const DEFAULT_WA_SIGNATURE = 'مع تحيات إدارة العيادة';
+    let CONFIG = { apiUrl: '', clinicName: DEFAULT_CLINIC_NAME, waSignature: DEFAULT_WA_SIGNATURE };
 
-    // ترحيل الإعدادات القديمة المخزنة على الجهاز (الرابط واسم العيادة)
-    (function migrateSettings() {
+    // توقيع يُضاف في نهاية كل رسالة واتساب
+    function waSign() { return '\n\n' + (CONFIG.waSignature || DEFAULT_WA_SIGNATURE); }
+
+    // قراءة الإعدادات من config.json (apiUrl / clinicName / waSignature)
+    async function loadConfig() {
       try {
-        if (localStorage.getItem('dental_default_url') !== DEFAULT_SCRIPT_URL) {
-          localStorage.setItem('dental_api_url', DEFAULT_SCRIPT_URL);
-          localStorage.setItem('dental_default_url', DEFAULT_SCRIPT_URL);
+        const res = await fetchWithTimeout('config.json', { cache: 'no-store' }, 3000);
+        if (res.ok) {
+          const c = await res.json();
+          CONFIG = { ...CONFIG, ...c };
+        }
+      } catch (e) { /* نكمل بالقيم الاحتياطية / المخزنة */ }
+
+      try {
+        let url = String(CONFIG.apiUrl || '').trim();
+        if (!url && !localStorage.getItem('dental_api_url')) url = DEFAULT_SCRIPT_URL;
+
+        // لو الرابط في config.json اتغير: نستخدمه ونمسح الكاش القديم
+        if (url && localStorage.getItem('dental_default_url') !== url) {
+          localStorage.setItem('dental_api_url', url);
+          localStorage.setItem('dental_default_url', url);
           localStorage.removeItem('dental_cache_v1');
         }
+
         const cn = localStorage.getItem('dental_clinic_name');
-        if (!cn || cn === 'عيادة الأسنان التخصصية' || cn === 'عيادة الأسنان') {
-          localStorage.setItem('dental_clinic_name', DEFAULT_CLINIC_NAME);
+        if (!cn || cn === 'عيادة الأسنان التخصصية' || cn === 'عيادة الأسنان' || cn === DEFAULT_CLINIC_NAME) {
+          localStorage.setItem('dental_clinic_name', CONFIG.clinicName || DEFAULT_CLINIC_NAME);
         }
       } catch (e) {}
-    })();
+
+      state.apiUrl = localStorage.getItem('dental_api_url') || state.apiUrl;
+      state.clinicName = localStorage.getItem('dental_clinic_name') || CONFIG.clinicName || DEFAULT_CLINIC_NAME;
+    }
 
 
     // ===== طبقة الاتصال بـ Google Apps Script (مع تشخيص واضح للأخطاء) =====
@@ -667,6 +738,7 @@
 
     // حالة التطبيق المركزية
     const state = {
+      treatments: [],
       apiUrl: localStorage.getItem('dental_api_url') || (DEFAULT_SCRIPT_URL.startsWith('http') ? DEFAULT_SCRIPT_URL : ''),
       clinicName: localStorage.getItem('dental_clinic_name') || DEFAULT_CLINIC_NAME,
       currency: localStorage.getItem('dental_currency') || 'ج.م',
@@ -694,7 +766,8 @@
     };
 
     // تشغيل التطبيق عند التحميل
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadConfig();                // قراءة الرابط واسم العيادة من config.json
       updateCurrencyLabels();
       if (loadCache()) renderAllViews(); // عرض فوري لآخر بيانات محفوظة
       refreshAllData();                  // ثم مزامنة في الخلفية
@@ -702,12 +775,29 @@
     });
 
 
+    // ===== خصم + مساعدات حساب =====
+    function netCost(p) { return Math.max(0, (p.Total_Cost || 0) - (p.Discount || 0)); }
+    function calcRemaining(p) { return Math.max(0, netCost(p) - (p.Total_Paid || 0)); }
+    function normPhone(v) {
+      const t = String(v == null ? '' : v).trim();
+      const d = t.replace(/\D/g, '');
+      return /^1[0125]\d{8}$/.test(d) ? '0' + d : t;
+    }
+    function discLine(p) {
+      return (p.Discount > 0) ? '\n• الخصم: ' + formatNumber(p.Discount) + ' ' + state.currency : '';
+    }
+    function totalHtml(p) {
+      return p.Discount > 0
+        ? `${formatNumber(netCost(p))} ${state.currency}<span class="block text-[10px] text-amber-600 font-semibold">بعد خصم ${formatNumber(p.Discount)}</span>`
+        : `${formatNumber(p.Total_Cost)} ${state.currency}`;
+    }
+
     // ===== كاش محلي: عرض فوري ثم مزامنة في الخلفية =====
     const CACHE_KEY = 'dental_cache_v1';
 
     function saveCache() {
       try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ url: state.apiUrl, patients: state.patients, summary: state.summary }));
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ url: state.apiUrl, patients: state.patients, treatments: state.treatments, summary: state.summary }));
       } catch (e) {}
     }
 
@@ -717,6 +807,7 @@
         const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
         if (!c || c.url !== state.apiUrl || !Array.isArray(c.patients)) return false;
         state.patients = c.patients;
+        state.treatments = c.treatments || [];
         state.summary = c.summary || state.summary;
         return true;
       } catch (e) { return false; }
@@ -737,9 +828,10 @@
         if (serverPatient) {
           p.Total_Paid = serverPatient.Total_Paid;
           p.Remaining = serverPatient.Remaining;
+          if (serverPatient.Discount != null) p.Discount = serverPatient.Discount;
         } else {
           p.Total_Paid += amount;
-          p.Remaining = Math.max(0, p.Total_Cost - p.Total_Paid);
+          p.Remaining = calcRemaining(p);
         }
         if (p.Remaining === 0 && p.Total_Cost > 0) p.Status = 'مكتمل';
       }
@@ -805,16 +897,15 @@
       closeModal('patientDetailsModal');
 
       document.getElementById('tmPatientName').textContent = p.Name;
-      document.getElementById('tmPatientInfo').textContent = `${p.Treatment_Type} • ${p.Phone}`;
-      document.getElementById('tmSumTotal').textContent = `${formatNumber(p.Total_Cost)} ${state.currency}`;
+      document.getElementById('tmPatientInfo').textContent = `${p.Treatment_Type} • ${normPhone(p.Phone)}`;
+      document.getElementById('tmSumTotal').innerHTML = totalHtml(p);
       document.getElementById('tmSumPaid').textContent = `${formatNumber(p.Total_Paid)} ${state.currency}`;
       document.getElementById('tmSumRemaining').textContent = `${formatNumber(p.Remaining)} ${state.currency}`;
 
       ['tmType', 'tmCost', 'tmInitialPay', 'tmNotes'].forEach(id => document.getElementById(id).value = '');
       document.getElementById('tmEditName').value = p.Name;
-      document.getElementById('tmEditPhone').value = p.Phone;
-      document.getElementById('tmEditType').value = p.Treatment_Type;
-      document.getElementById('tmEditCost').value = p.Total_Cost;
+      document.getElementById('tmEditPhone').value = normPhone(p.Phone);
+      document.getElementById('tmDiscount').value = '';
       document.getElementById('tmEditStatus').value = p.Status === 'مكتمل' ? 'مكتمل' : 'مستمر';
       document.getElementById('tmEditNotes').value = p.Notes || '';
 
@@ -840,10 +931,11 @@
       if (!p) return;
       const cost = parseFloat(document.getElementById('tmCost').value) || 0;
       const pay = parseFloat(document.getElementById('tmInitialPay').value) || 0;
-      const newTotal = p.Total_Cost + cost;
+      const disc = parseFloat(document.getElementById('tmDiscount').value) || 0;
+      const newTotal = netCost(p) + cost - disc;
       const newRemaining = Math.max(0, newTotal - p.Total_Paid - pay);
       document.getElementById('tmPreview').innerHTML =
-        `بعد الإضافة: الإجمالي <b>${formatNumber(newTotal)}</b> • المتبقي على الحساب <b>${formatNumber(newRemaining)}</b> ${state.currency}`;
+        `بعد الإضافة: الإجمالي${(p.Discount > 0 || disc > 0) ? ' بعد الخصم' : ''} <b>${formatNumber(newTotal)}</b> • المتبقي على الحساب <b>${formatNumber(newRemaining)}</b> ${state.currency}`;
     }
 
     function setBtnLoading(btn, text) {
@@ -854,7 +946,16 @@
     }
 
     // دمج بيانات مريض محدّثة في الشاشة فوراً (+ دفعة اليوم إن وجدت)
-    function applyPatientUpdate(upd, payAmount, payMethod, payNote) {
+    function upsertTreatment(tr) {
+      if (!tr) return;
+      state.treatments = state.treatments || [];
+      const i = state.treatments.findIndex(t => t.Treatment_ID === tr.Treatment_ID);
+      if (i >= 0) state.treatments[i] = tr; else state.treatments.unshift(tr);
+    }
+
+    function applyPatientUpdate(data, payAmount, payMethod, payNote) {
+      const upd = (data && data.Patient) ? data.Patient : data;
+      if (data && data.Treatment) upsertTreatment(data.Treatment);
       const p = state.patients.find(x => x.Patient_ID === upd.Patient_ID);
       if (p) Object.keys(upd).forEach(k => { if (upd[k] !== undefined && upd[k] !== null) p[k] = upd[k]; });
       if (payAmount > 0) {
@@ -876,11 +977,13 @@
       const type = document.getElementById('tmType').value.trim();
       const cost = parseFloat(document.getElementById('tmCost').value) || 0;
       const pay = parseFloat(document.getElementById('tmInitialPay').value) || 0;
+      const disc = parseFloat(document.getElementById('tmDiscount').value) || 0;
       const method = document.getElementById('tmMethod').value;
       const notes = document.getElementById('tmNotes').value.trim();
 
       if (!type) return showToast('اكتب الإجراء الطبي الجديد');
       if (cost <= 0) return showToast('اكتب تكلفة العلاج الجديد');
+      if (disc > cost) return showToast('الخصم أكبر من تكلفة العلاج');
 
       const done = setBtnLoading(document.getElementById('tmAddSaveBtn'), 'جاري الحفظ...');
       try {
@@ -888,10 +991,14 @@
           const dp = demoData.patients.find(x => x.Patient_ID === p.Patient_ID);
           if (dp) {
             dp.Treatment_Type = dp.Treatment_Type ? dp.Treatment_Type + ' + ' + type : type;
-            dp.Total_Cost += cost; dp.Total_Paid += pay;
-            dp.Remaining = Math.max(0, dp.Total_Cost - dp.Total_Paid);
+            dp.Total_Cost += cost; dp.Total_Paid += pay; dp.Discount = (dp.Discount || 0) + disc;
+            dp.Remaining = calcRemaining(dp);
             dp.Status = 'مستمر';
           }
+          (demoData.treatments = demoData.treatments || []).unshift({
+            Treatment_ID: 'TRT-' + Date.now(), Patient_ID: p.Patient_ID, Treatment_Type: type, Cost: cost, Discount: disc,
+            Start_Date: new Date().toISOString().slice(0, 10), Status: 'مستمر', Notes: notes
+          });
           if (pay > 0) demoData.todayPayments.unshift({
             Payment_ID: 'PAY-' + Date.now(), Patient_ID: p.Patient_ID, Patient_Name: p.Name,
             Amount_Paid: pay, Payment_Date: 'الآن', Payment_Method: method, Notes: 'دفعة علاج جديد: ' + type
@@ -904,7 +1011,7 @@
 
         const res = await apiPost({
           action: 'addTreatment', Patient_ID: p.Patient_ID, Treatment_Type: type,
-          Cost: cost, Initial_Payment: pay, Payment_Method: method, Notes: notes
+          Cost: cost, Discount: disc, Initial_Payment: pay, Payment_Method: method, Notes: notes
         });
         if (res.status !== 'success') throw new Error(res.message || 'فشل الحفظ');
 
@@ -927,8 +1034,6 @@
         Patient_ID: p.Patient_ID,
         Name: document.getElementById('tmEditName').value.trim(),
         Phone: document.getElementById('tmEditPhone').value.trim(),
-        Treatment_Type: document.getElementById('tmEditType').value.trim(),
-        Total_Cost: parseFloat(document.getElementById('tmEditCost').value) || 0,
         Status: document.getElementById('tmEditStatus').value,
         Notes: document.getElementById('tmEditNotes').value.trim()
       };
@@ -939,9 +1044,7 @@
         if (!state.apiUrl) {
           const dp = demoData.patients.find(x => x.Patient_ID === p.Patient_ID);
           if (dp) {
-            Object.assign(dp, { Name: payload.Name, Phone: payload.Phone, Treatment_Type: payload.Treatment_Type,
-              Total_Cost: payload.Total_Cost, Status: payload.Status, Notes: payload.Notes });
-            dp.Remaining = Math.max(0, dp.Total_Cost - dp.Total_Paid);
+            Object.assign(dp, { Name: payload.Name, Phone: payload.Phone, Status: payload.Status, Notes: payload.Notes });
           }
           closeModal('treatmentModal');
           showToast('تم تعديل بيانات الحالة');
@@ -954,6 +1057,102 @@
 
         closeModal('treatmentModal');
         showToast('تم تعديل بيانات الحالة');
+        applyPatientUpdate(res.data, 0);
+        refreshAllData();
+      } catch (err) {
+        showToast('تعذر الحفظ: ' + explainNetworkError(err));
+      } finally {
+        done();
+      }
+    }
+
+
+    // ===== شيت العلاجات: عرض وتعديل كل علاج =====
+    function renderPatientTreatments(patientId) {
+      const el = document.getElementById('patientTreatmentsList');
+      const list = (state.treatments || []).filter(t => t.Patient_ID === patientId);
+      if (!list.length) {
+        el.innerHTML = `<div class="text-xs text-slate-400 py-3 text-center">لا توجد علاجات مسجلة</div>`;
+        return;
+      }
+      el.innerHTML = list.map(t => {
+        const disc = t.Discount || 0;
+        const net = Math.max(0, (t.Cost || 0) - disc);
+        const done = t.Status === 'مكتمل';
+        return `
+          <div class="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-slate-800 truncate">${escapeHtml(t.Treatment_Type)}</div>
+              <div class="text-[10px] text-slate-500">${escapeHtml(t.Start_Date)} • ${formatNumber(net)} ${state.currency}${disc > 0 ? ' (خصم ' + formatNumber(disc) + ')' : ''}</div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${done ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${escapeHtml(t.Status)}</span>
+              <button type="button" onclick="openTreatmentEdit('${t.Treatment_ID}')" class="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs">✎</button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    let tmeId = null;
+
+    function openTreatmentEdit(tid) {
+      const t = (state.treatments || []).find(x => x.Treatment_ID === tid);
+      if (!t) return;
+      tmeId = tid;
+      const p = state.patients.find(x => x.Patient_ID === t.Patient_ID);
+      document.getElementById('tmeInfo').textContent = p ? p.Name : '';
+      document.getElementById('tmeType').value = t.Treatment_Type;
+      document.getElementById('tmeCost').value = t.Cost;
+      document.getElementById('tmeDiscount').value = t.Discount || 0;
+      document.getElementById('tmeStatus').value = t.Status === 'مكتمل' ? 'مكتمل' : 'مستمر';
+      document.getElementById('tmeNotes').value = t.Notes || '';
+      closeModal('patientDetailsModal');
+      document.getElementById('treatmentEditModal').classList.remove('hidden');
+    }
+
+    function recomputeDemoPatient(pid) {
+      const dp = demoData.patients.find(x => x.Patient_ID === pid);
+      if (!dp) return;
+      const ts = (demoData.treatments || []).filter(t => t.Patient_ID === pid);
+      dp.Total_Cost = ts.reduce((s, t) => s + t.Cost, 0);
+      dp.Discount = ts.reduce((s, t) => s + (t.Discount || 0), 0);
+      dp.Treatment_Type = ts.map(t => t.Treatment_Type).join(' + ');
+      dp.Remaining = calcRemaining(dp);
+    }
+
+    async function submitTreatmentEdit() {
+      const t = (state.treatments || []).find(x => x.Treatment_ID === tmeId);
+      if (!t) return;
+      const payload = {
+        action: 'updateTreatment',
+        Treatment_ID: tmeId,
+        Treatment_Type: document.getElementById('tmeType').value.trim(),
+        Cost: parseFloat(document.getElementById('tmeCost').value) || 0,
+        Discount: parseFloat(document.getElementById('tmeDiscount').value) || 0,
+        Status: document.getElementById('tmeStatus').value,
+        Notes: document.getElementById('tmeNotes').value.trim()
+      };
+      if (!payload.Treatment_Type) return showToast('اكتب الإجراء الطبي');
+      if (payload.Discount > payload.Cost) return showToast('الخصم أكبر من تكلفة العلاج');
+
+      const done = setBtnLoading(document.getElementById('tmeSaveBtn'), 'جاري الحفظ...');
+      try {
+        if (!state.apiUrl) {
+          const dt = (demoData.treatments || []).find(x => x.Treatment_ID === tmeId);
+          if (dt) Object.assign(dt, { Treatment_Type: payload.Treatment_Type, Cost: payload.Cost,
+            Discount: payload.Discount, Status: payload.Status, Notes: payload.Notes });
+          recomputeDemoPatient(t.Patient_ID);
+          closeModal('treatmentEditModal');
+          showToast('تم تعديل العلاج');
+          refreshAllData();
+          return;
+        }
+
+        const res = await apiPost(payload);
+        if (res.status !== 'success') throw new Error(res.message || 'فشل الحفظ');
+
+        closeModal('treatmentEditModal');
+        showToast('تم تعديل العلاج');
         applyPatientUpdate(res.data, 0);
         refreshAllData();
       } catch (err) {
@@ -1012,6 +1211,7 @@
 
         if (allRes && allRes.status === 'success' && allRes.data && allRes.data.patients) {
           state.patients = allRes.data.patients;
+          state.treatments = allRes.data.treatments || [];
           state.summary = allRes.data.summary;
         } else {
           // السكربت القديم لم يُحدَّث بعد: نرجع للطلبين المنفصلين
@@ -1035,6 +1235,13 @@
     }
 
     function loadDemoState() {
+      if (!demoData.treatments) {
+        demoData.treatments = demoData.patients.map(p => ({
+          Treatment_ID: 'TRT-' + p.Patient_ID, Patient_ID: p.Patient_ID, Treatment_Type: p.Treatment_Type,
+          Cost: p.Total_Cost, Discount: p.Discount || 0, Start_Date: p.Start_Date, Status: p.Status, Notes: ''
+        }));
+      }
+      state.treatments = [...demoData.treatments];
       state.patients = [...demoData.patients];
       const debtors = state.patients.filter(p => p.Remaining > 0).sort((a, b) => b.Remaining - a.Remaining);
       const totalDebts = debtors.reduce((s, p) => s + p.Remaining, 0);
@@ -1116,7 +1323,7 @@
       }
 
       container.innerHTML = filtered.map(p => {
-        const percent = p.Total_Cost > 0 ? Math.min(100, Math.round((p.Total_Paid / p.Total_Cost) * 100)) : 100;
+        const percent = netCost(p) > 0 ? Math.min(100, Math.round((p.Total_Paid / netCost(p)) * 100)) : 100;
         const isCompleted = p.Remaining <= 0;
 
         return `
@@ -1134,7 +1341,7 @@
             <!-- شريط تقدم السداد -->
             <div>
               <div class="flex justify-between text-[11px] text-slate-500 mb-1">
-                <span>تم سداد ${formatNumber(p.Total_Paid)} من ${formatNumber(p.Total_Cost)} ${state.currency}</span>
+                <span>تم سداد ${formatNumber(p.Total_Paid)} من ${formatNumber(netCost(p))} ${state.currency}</span>
                 <span class="font-bold text-teal-700">${percent}%</span>
               </div>
               <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -1181,7 +1388,7 @@
       }
 
       container.innerHTML = debtors.map(p => {
-        const waMessage = `مرحباً أ/ ${p.Name}،\nنود تذكيركم بموعد سداد القسط المتبقي لحسابكم في ${state.clinicName} (${p.Treatment_Type}).\n• إجمالي التكلفة: ${formatNumber(p.Total_Cost)} ${state.currency}\n• المدفوع: ${formatNumber(p.Total_Paid)} ${state.currency}\n• الرصيد المتبقي: ${formatNumber(p.Remaining)} ${state.currency}\nمع تمنياتنا لكم بدوام الصحة والعافية.`;
+        const waMessage = `مرحباً أ/ ${p.Name}،\nنود تذكيركم بموعد سداد القسط المتبقي لحسابكم في ${state.clinicName} (${p.Treatment_Type}).\n• إجمالي التكلفة: ${formatNumber(p.Total_Cost)} ${state.currency}${discLine(p)}\n• المدفوع: ${formatNumber(p.Total_Paid)} ${state.currency}\n• الرصيد المتبقي: ${formatNumber(p.Remaining)} ${state.currency}\nمع تمنياتنا لكم بدوام الصحة والعافية.${waSign()}`;
         const waLink = `https://wa.me/${cleanPhone(p.Phone)}?text=${encodeURIComponent(waMessage)}`;
 
         return `
@@ -1221,17 +1428,18 @@
       if (!patient) return;
 
       document.getElementById('detailPatientName').textContent = patient.Name;
-      document.getElementById('detailPatientTreatment').textContent = `${patient.Treatment_Type} • ${patient.Phone}`;
-      document.getElementById('detailTotalCost').textContent = `${formatNumber(patient.Total_Cost)} ${state.currency}`;
+      document.getElementById('detailPatientTreatment').textContent = `${patient.Treatment_Type} • ${normPhone(patient.Phone)}`;
+      document.getElementById('detailTotalCost').innerHTML = totalHtml(patient);
       document.getElementById('detailTotalPaid').textContent = `${formatNumber(patient.Total_Paid)} ${state.currency}`;
       document.getElementById('detailRemaining').textContent = `${formatNumber(patient.Remaining)} ${state.currency}`;
-      document.getElementById('detailCallBtn').href = `tel:${patient.Phone}`;
+      document.getElementById('detailCallBtn').href = `tel:${normPhone(patient.Phone)}`;
       document.getElementById('detailAddPaymentBtn').onclick = () => {
         closeModal('patientDetailsModal');
         openQuickPaymentModal(patient.Patient_ID);
       };
       document.getElementById('detailNewTreatmentBtn').onclick = () => openTreatmentModal(patient.Patient_ID, 'add');
       document.getElementById('detailEditBtn').onclick = () => openTreatmentModal(patient.Patient_ID, 'edit');
+      renderPatientTreatments(patientId);
 
       const historyContainer = document.getElementById('patientHistoryList');
       historyContainer.innerHTML = `<div class="text-xs text-slate-400 py-4 text-center">جاري تحميل السجل...</div>`;
@@ -1293,6 +1501,7 @@
         Phone: document.getElementById('newPatientPhone').value.trim(),
         Treatment_Type: document.getElementById('newPatientTreatment').value.trim(),
         Total_Cost: parseFloat(document.getElementById('newPatientTotalCost').value) || 0,
+        Discount: parseFloat(document.getElementById('newPatientDiscount').value) || 0,
         Initial_Payment: parseFloat(document.getElementById('newPatientInitialPayment').value) || 0,
         Payment_Method: document.getElementById('newPatientPaymentMethod').value,
         Notes: document.getElementById('newPatientNotes').value.trim()
@@ -1308,11 +1517,17 @@
             Phone: payload.Phone,
             Treatment_Type: payload.Treatment_Type,
             Total_Cost: payload.Total_Cost,
+            Discount: payload.Discount,
             Total_Paid: payload.Initial_Payment,
-            Remaining: Math.max(0, payload.Total_Cost - payload.Initial_Payment),
+            Remaining: Math.max(0, payload.Total_Cost - payload.Discount - payload.Initial_Payment),
             Start_Date: 'اليوم',
             Status: 'مستمر',
             Notes: payload.Notes
+          });
+          (demoData.treatments = demoData.treatments || []).unshift({
+            Treatment_ID: 'TRT-' + newId, Patient_ID: newId, Treatment_Type: payload.Treatment_Type || 'علاج',
+            Cost: payload.Total_Cost, Discount: payload.Discount || 0,
+            Start_Date: new Date().toISOString().slice(0, 10), Status: 'مستمر', Notes: ''
           });
           if (payload.Initial_Payment > 0) {
             demoData.todayPayments.unshift({
@@ -1337,7 +1552,8 @@
         if (response.status === 'success') {
           closeModal('addPatientModal');
           showToast('تم حفظ ملف المريض في Google Sheets');
-          const np = response.data || {};
+          const np = (response.data && response.data.Patient) || response.data || {};
+          if (response.data && response.data.Treatment) upsertTreatment(response.data.Treatment);
           if (np.Patient_ID) {
             state.patients.unshift({
               Patient_ID: np.Patient_ID,
@@ -1345,8 +1561,9 @@
               Phone: np.Phone || payload.Phone,
               Treatment_Type: np.Treatment_Type || payload.Treatment_Type,
               Total_Cost: np.Total_Cost != null ? np.Total_Cost : payload.Total_Cost,
+              Discount: np.Discount != null ? np.Discount : payload.Discount,
               Total_Paid: np.Total_Paid != null ? np.Total_Paid : payload.Initial_Payment,
-              Remaining: np.Remaining != null ? np.Remaining : Math.max(0, payload.Total_Cost - payload.Initial_Payment),
+              Remaining: np.Remaining != null ? np.Remaining : Math.max(0, payload.Total_Cost - payload.Discount - payload.Initial_Payment),
               Start_Date: np.Start_Date || '',
               Status: np.Status || 'مستمر',
               Notes: np.Notes != null ? np.Notes : payload.Notes
@@ -1403,7 +1620,7 @@
       const patient = state.patients.find(p => p.Patient_ID === patientId);
 
       if (patient) {
-        hint.textContent = `الإجمالي: ${formatNumber(patient.Total_Cost)} • المدفوع: ${formatNumber(patient.Total_Paid)} • المتبقي الحالي: ${formatNumber(patient.Remaining)} ${state.currency}`;
+        hint.textContent = `الإجمالي${patient.Discount > 0 ? ' بعد الخصم' : ''}: ${formatNumber(netCost(patient))} • المدفوع: ${formatNumber(patient.Total_Paid)} • المتبقي الحالي: ${formatNumber(patient.Remaining)} ${state.currency}`;
         hint.classList.remove('hidden');
       } else {
         hint.classList.add('hidden');
@@ -1419,6 +1636,7 @@
 
       const patientId = document.getElementById('paymentPatientSelect').value;
       const amount = parseFloat(document.getElementById('paymentAmountInput').value) || 0;
+      const disc = parseFloat(document.getElementById('paymentDiscountInput').value) || 0;
       const method = document.getElementById('paymentMethodInput').value;
       const notes = document.getElementById('paymentNotesInput').value.trim();
 
@@ -1428,6 +1646,7 @@
         action: 'addPayment',
         Patient_ID: patientId,
         Amount_Paid: amount,
+        Discount: disc,
         Payment_Method: method,
         Notes: notes
       };
@@ -1439,7 +1658,8 @@
           // الوضع التجريبي
           if (patient) {
             patient.Total_Paid += amount;
-            patient.Remaining = Math.max(0, patient.Total_Cost - patient.Total_Paid);
+            patient.Discount = (patient.Discount || 0) + disc;
+            patient.Remaining = calcRemaining(patient);
             newRemaining = patient.Remaining;
           }
           demoData.todayPayments.unshift({
@@ -1470,7 +1690,7 @@
         // تجهيز شاشة النجاح ورابط إيصال الواتساب
         const patientName = patient ? patient.Name : 'المريض';
         const patientPhone = patient ? cleanPhone(patient.Phone) : '';
-        const receiptText = `إيصال استلام دفعة - ${state.clinicName}\nمرحباً أ/ ${patientName}،\nتم استلام دفعة بمبلغ: ${formatNumber(amount)} ${state.currency} (${method}).\nالرصيد المتبقي الحالي: ${formatNumber(newRemaining)} ${state.currency}.\nشكراً لثقتكم بنا.`;
+        const receiptText = `إيصال استلام دفعة - ${state.clinicName}\nمرحباً أ/ ${patientName}،\nتم استلام دفعة بمبلغ: ${formatNumber(amount)} ${state.currency} (${method}).${disc > 0 ? '\nتم تطبيق خصم: ' + formatNumber(disc) + ' ' + state.currency + '.' : ''}\nالرصيد المتبقي الحالي: ${formatNumber(newRemaining)} ${state.currency}.\nشكراً لثقتكم بنا.${waSign()}`;
 
         document.getElementById('paymentReceiptSummary').textContent =
           `المريض: ${patientName} | المدفوع: ${formatNumber(amount)} ${state.currency} | المتبقي: ${formatNumber(newRemaining)} ${state.currency}`;
@@ -1499,7 +1719,7 @@
 
     function saveSettings(e) {
       e.preventDefault();
-      state.clinicName = document.getElementById('settingClinicName').value.trim() || DEFAULT_CLINIC_NAME;
+      state.clinicName = document.getElementById('settingClinicName').value.trim() || CONFIG.clinicName || DEFAULT_CLINIC_NAME;
       state.currency = document.getElementById('settingCurrency').value.trim() || 'ج.م';
       state.apiUrl = document.getElementById('settingApiUrl').value.trim();
 
@@ -1525,7 +1745,7 @@
     }
 
     function cleanPhone(phone) {
-      let cleaned = String(phone || '').replace(/[^0-9]/g, '');
+      let cleaned = normPhone(phone).replace(/[^0-9]/g, '');
       // إذا كان الرقم مصرياً يبدأ بـ 01 نضيف كود مصر 2 تلقائياً لتسهيل عمل واتساب
       if (cleaned.length === 11 && cleaned.startsWith('01')) {
         cleaned = '2' + cleaned;
