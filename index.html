@@ -93,7 +93,7 @@
           <h1 class="font-bold text-lg leading-tight">حسابات العيادة</h1>
           <p id="connectionStatus" class="text-xs text-teal-100 flex items-center gap-1">
             <span class="w-2 h-2 rounded-full bg-emerald-300 inline-block animate-pulse"></span>
-            <span>متصل بالسحابة</span>
+            <span>متصل بقاعدة البيانات</span>
           </p>
         </div>
       </div>
@@ -1253,7 +1253,7 @@
         }
         saveCache();
 
-        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-300 inline-block"></span><span>متصل بـ Google Sheets</span>`;
+        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-300 inline-block"></span><span>متصل بقاعدة البيانات</span>`;
         renderAllViews();
       } catch (err) {
         showToast(explainNetworkError(err));
@@ -1587,7 +1587,7 @@
 
         if (response.status === 'success') {
           closeModal('addPatientModal');
-          showToast('تم حفظ ملف المريض في Google Sheets');
+          showToast('تم حفظ ملف المريض بنجاح');
           const np = (response.data && response.data.Patient) || response.data || {};
           if (response.data && response.data.Treatment) upsertTreatment(response.data.Treatment);
           if (np.Patient_ID) {
