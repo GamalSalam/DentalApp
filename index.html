@@ -430,6 +430,11 @@
         </div>
       </div>
 
+      <div id="detailDiscountRow" class="hidden items-center justify-between bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 text-xs font-bold">
+        <span>🏷️ إجمالي الخصم على الحساب</span>
+        <span id="detailDiscountValue"></span>
+      </div>
+
       <!-- أزرار سريعة داخل ملف المريض -->
       <div class="flex gap-2">
         <button id="detailAddPaymentBtn" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm">
@@ -786,6 +791,11 @@
     function discLine(p) {
       return (p.Discount > 0) ? '\n• الخصم: ' + formatNumber(p.Discount) + ' ' + state.currency : '';
     }
+    function discBadge(p) {
+      return (p.Discount > 0)
+        ? `<span class="inline-block mt-1 text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">خصم ${formatNumber(p.Discount)} ${state.currency}</span>`
+        : '';
+    }
     function totalHtml(p) {
       return p.Discount > 0
         ? `${formatNumber(netCost(p))} ${state.currency}<span class="block text-[10px] text-amber-600 font-semibold">بعد خصم ${formatNumber(p.Discount)}</span>`
@@ -843,6 +853,7 @@
         Patient_Name: p ? p.Name : '',
         Patient_Phone: p ? p.Phone : '',
         Amount_Paid: amount,
+        Discount: (serverPayment && serverPayment.Discount) || 0,
         Payment_Date: serverPayment && serverPayment.Payment_Date || 'الآن',
         Payment_Method: method,
         Notes: notes
@@ -1294,7 +1305,7 @@
         <div class="p-3.5 flex items-center justify-between hover:bg-slate-50">
           <div>
             <p class="font-bold text-sm text-slate-800">${escapeHtml(pay.Patient_Name)}</p>
-            <p class="text-xs text-slate-400 mt-0.5">${escapeHtml(pay.Payment_Date)} • <span class="text-teal-700 font-semibold">${escapeHtml(pay.Payment_Method)}</span> ${pay.Notes ? '• ' + escapeHtml(pay.Notes) : ''}</p>
+            <p class="text-xs text-slate-400 mt-0.5">${escapeHtml(pay.Payment_Date)} • <span class="text-teal-700 font-semibold">${escapeHtml(pay.Payment_Method)}</span> ${pay.Notes ? '• ' + escapeHtml(pay.Notes) : ''}${pay.Discount > 0 ? ' • <span class="text-amber-600 font-semibold">🏷️ خصم ' + formatNumber(pay.Discount) + '</span>' : ''}</p>
           </div>
           <div class="text-left">
             <span class="font-extrabold text-sm text-emerald-600">+${formatNumber(pay.Amount_Paid)} ${state.currency}</span>
@@ -1332,6 +1343,7 @@
               <div onclick="openPatientDetails('${p.Patient_ID}')" class="cursor-pointer">
                 <h4 class="font-extrabold text-sm text-slate-800 hover:text-teal-700">${escapeHtml(p.Name)}</h4>
                 <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(p.Treatment_Type)}</p>
+                ${discBadge(p)}
               </div>
               <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${isCompleted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">
                 ${isCompleted ? 'خالص الحساب' : 'متبقي ' + formatNumber(p.Remaining) + ' ' + state.currency}
@@ -1397,6 +1409,7 @@
               <div onclick="openPatientDetails('${p.Patient_ID}')" class="cursor-pointer">
                 <h4 class="font-extrabold text-sm text-slate-800">${escapeHtml(p.Name)}</h4>
                 <p class="text-xs text-slate-500">${escapeHtml(p.Treatment_Type)}</p>
+                ${discBadge(p)}
               </div>
               <div class="text-left">
                 <span class="text-[11px] text-slate-400 block">المتبقي</span>
@@ -1432,6 +1445,10 @@
       document.getElementById('detailTotalCost').innerHTML = totalHtml(patient);
       document.getElementById('detailTotalPaid').textContent = `${formatNumber(patient.Total_Paid)} ${state.currency}`;
       document.getElementById('detailRemaining').textContent = `${formatNumber(patient.Remaining)} ${state.currency}`;
+      const dRow = document.getElementById('detailDiscountRow');
+      dRow.classList.toggle('hidden', !(patient.Discount > 0));
+      dRow.classList.toggle('flex', patient.Discount > 0);
+      document.getElementById('detailDiscountValue').textContent = `${formatNumber(patient.Discount || 0)} ${state.currency}`;
       document.getElementById('detailCallBtn').href = `tel:${normPhone(patient.Phone)}`;
       document.getElementById('detailAddPaymentBtn').onclick = () => {
         closeModal('patientDetailsModal');
@@ -1474,6 +1491,7 @@
           <div>
             <p class="text-xs font-bold text-slate-700">${escapeHtml(item.Payment_Date)} (${escapeHtml(item.Payment_Method)})</p>
             <p class="text-[11px] text-slate-500">${escapeHtml(item.Notes || 'دفعة نقدية')}</p>
+            ${item.Discount > 0 ? `<p class="text-[11px] font-bold text-amber-600">🏷️ خصم مُطبق مع هذه الدفعة: ${formatNumber(item.Discount)} ${state.currency}</p>` : ''}
           </div>
           <span class="font-extrabold text-sm text-emerald-600">${formatNumber(item.Amount_Paid)} ${state.currency}</span>
         </div>
@@ -1667,6 +1685,7 @@
             Patient_ID: patientId,
             Patient_Name: patient ? patient.Name : '',
             Amount_Paid: amount,
+            Discount: disc,
             Payment_Date: 'الآن',
             Payment_Method: method,
             Notes: notes
