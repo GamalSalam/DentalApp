@@ -100,10 +100,11 @@
 
       <div class="flex items-center gap-2">
         <!-- زر تحديث البيانات -->
-        <button onclick="refreshAllData()" id="refreshBtn" title="تحديث البيانات" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition">
+        <button onclick="syncNow()" id="refreshBtn" title="مزامنة: رفع التعديلات وتحديث البيانات" class="relative p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition">
           <svg id="refreshIcon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
+          <span id="syncBadge" class="hidden absolute -top-1.5 -left-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-extrabold flex items-center justify-center">0</span>
         </button>
         <!-- زر إعدادات الربط -->
         <button onclick="openSettingsModal()" title="إعدادات الربط والعيادة" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition">
@@ -628,6 +629,22 @@
     </div>
   </div>
 
+  <!-- ==================== التعديلات المعلّقة (لم تُرفع بعد) ==================== -->
+  <div id="pendingModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl max-h-[92vh] overflow-y-auto space-y-3">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="font-extrabold text-base text-slate-800">التعديلات المعلّقة</h3>
+        <button onclick="closeModal('pendingModal')" class="p-1.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200">✕</button>
+      </div>
+      <p id="pendingHint" class="text-xs text-slate-500"></p>
+      <div id="pendingList" class="space-y-2 max-h-[45vh] overflow-y-auto"></div>
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" onclick="syncNow(); closeModal('pendingModal')" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-2xl text-sm shadow-md">رفع ومزامنة الآن</button>
+        <button type="button" onclick="exportBackup()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-2xl text-sm">نسخة احتياطية (JSON)</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==================== نافذة إعدادات الربط (Settings Modal) ==================== -->
   <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4">
@@ -736,7 +753,7 @@
         return 'السكربت على جوجل قديم: الصق Code.gs الجديد ثم Deploy > Manage deployments > Edit > New version';
       }
       if (err && err.name === 'AbortError') return 'انتهت مهلة الاتصال، حاول مرة أخرى';
-      if (err instanceof TypeError) {
+      if (err && err.name === 'TypeError') {
         return 'تعذر الوصول للخادم: تأكد أن النشر Anyone وأنك أعدت النشر بنسخة جديدة (New version)';
       }
       return err && err.message ? err.message : 'خطأ غير معروف';
@@ -749,19 +766,20 @@
       return parseApiResponse(res);
     }
 
-    async function apiPost(payload) {
+    async function apiPost(payload, ms) {
       const res = await fetchWithTimeout(state.apiUrl, {
         method: 'POST',
         redirect: 'follow',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      });
+      }, ms);
       return parseApiResponse(res);
     }
 
     // حالة التطبيق المركزية
     const state = {
       treatments: [],
+      payments: [],
       apiUrl: localStorage.getItem('dental_api_url') || (DEFAULT_SCRIPT_URL.startsWith('http') ? DEFAULT_SCRIPT_URL : ''),
       clinicName: localStorage.getItem('dental_clinic_name') || DEFAULT_CLINIC_NAME,
       currency: localStorage.getItem('dental_currency') || 'ج.م',
@@ -790,10 +808,14 @@
 
     // تشغيل التطبيق عند التحميل
     document.addEventListener('DOMContentLoaded', async () => {
-      await loadConfig();                // قراءة الرابط واسم العيادة من config.json
+      loadLocal();
       updateCurrencyLabels();
-      if (loadCache()) renderAllViews(); // عرض فوري لآخر بيانات محفوظة
-      refreshAllData();                  // ثم مزامنة في الخلفية
+      rebuildView();                     // عرض فوري من النسخة المحلية
+      await loadConfig();                // الرابط واسم العيادة من config.json
+      updateCurrencyLabels();
+      if (!state.apiUrl && !DB.patients.length && !OUTBOX.length) seedDemoDb();
+      rebuildView();
+      startupSync();                     // تحديث تلقائي فقط لو لا توجد تعديلات معلّقة
       registerServiceWorker();
     });
 
@@ -821,67 +843,9 @@
     }
 
     // ===== كاش محلي: عرض فوري ثم مزامنة في الخلفية =====
-    const CACHE_KEY = 'dental_cache_v1';
-
-    function saveCache() {
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ url: state.apiUrl, patients: state.patients, treatments: state.treatments, summary: state.summary }));
-      } catch (e) {}
-    }
-
-    function loadCache() {
-      if (!state.apiUrl) return false;
-      try {
-        const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-        if (!c || c.url !== state.apiUrl || !Array.isArray(c.patients)) return false;
-        state.patients = c.patients;
-        state.treatments = c.treatments || [];
-        state.summary = c.summary || state.summary;
-        return true;
-      } catch (e) { return false; }
-    }
 
     // إعادة حساب المدينين من state.patients بعد أي تعديل محلي
-    function rebuildDebts() {
-      const debtors = state.patients.filter(p => p.Remaining > 0).sort((a, b) => b.Remaining - a.Remaining);
-      state.summary.debtors = debtors;
-      state.summary.debtorsCount = debtors.length;
-      state.summary.totalDebts = debtors.reduce((s, p) => s + p.Remaining, 0);
-    }
-
     // تطبيق دفعة جديدة على الشاشة فوراً بدون انتظار مزامنة كاملة
-    function applyPaymentLocally(patientId, amount, method, notes, serverPatient, serverPayment) {
-      const p = state.patients.find(x => x.Patient_ID === patientId);
-      if (p) {
-        if (serverPatient) {
-          p.Total_Paid = serverPatient.Total_Paid;
-          p.Remaining = serverPatient.Remaining;
-          if (serverPatient.Discount != null) p.Discount = serverPatient.Discount;
-        } else {
-          p.Total_Paid += amount;
-          p.Remaining = calcRemaining(p);
-        }
-        if (p.Remaining === 0 && p.Total_Cost > 0) p.Status = 'مكتمل';
-      }
-      state.summary.todayIncome = (state.summary.todayIncome || 0) + amount;
-      state.summary.todayPayments = state.summary.todayPayments || [];
-      state.summary.todayPayments.unshift({
-        Payment_ID: serverPayment && serverPayment.Payment_ID || ('PAY-' + Date.now()),
-        Patient_ID: patientId,
-        Patient_Name: p ? p.Name : '',
-        Patient_Phone: p ? p.Phone : '',
-        Amount_Paid: amount,
-        Discount: (serverPayment && serverPayment.Discount) || 0,
-        Payment_Date: serverPayment && serverPayment.Payment_Date || 'الآن',
-        Payment_Method: method,
-        Notes: notes
-      });
-      rebuildDebts();
-      saveCache();
-      renderAllViews();
-    }
-
-
     // ===== مريض مسجل: علاج جديد على نفس الحساب / تعديل الحالة =====
     let tmPatientId = null;
 
@@ -975,127 +939,6 @@
     }
 
     // دمج بيانات مريض محدّثة في الشاشة فوراً (+ دفعة اليوم إن وجدت)
-    function upsertTreatment(tr) {
-      if (!tr) return;
-      state.treatments = state.treatments || [];
-      const i = state.treatments.findIndex(t => t.Treatment_ID === tr.Treatment_ID);
-      if (i >= 0) state.treatments[i] = tr; else state.treatments.unshift(tr);
-    }
-
-    function applyPatientUpdate(data, payAmount, payMethod, payNote) {
-      const upd = (data && data.Patient) ? data.Patient : data;
-      if (data && data.Treatment) upsertTreatment(data.Treatment);
-      const p = state.patients.find(x => x.Patient_ID === upd.Patient_ID);
-      if (p) Object.keys(upd).forEach(k => { if (upd[k] !== undefined && upd[k] !== null) p[k] = upd[k]; });
-      if (payAmount > 0) {
-        state.summary.todayIncome = (state.summary.todayIncome || 0) + payAmount;
-        (state.summary.todayPayments = state.summary.todayPayments || []).unshift({
-          Payment_ID: 'PAY-' + Date.now(), Patient_ID: upd.Patient_ID, Patient_Name: p ? p.Name : '',
-          Patient_Phone: p ? p.Phone : '', Amount_Paid: payAmount, Payment_Date: 'الآن',
-          Payment_Method: payMethod, Notes: payNote
-        });
-      }
-      rebuildDebts();
-      saveCache();
-      renderAllViews();
-    }
-
-    async function submitTreatment() {
-      const p = currentTmPatient();
-      if (!p) return;
-      const type = document.getElementById('tmType').value.trim();
-      const cost = parseFloat(document.getElementById('tmCost').value) || 0;
-      const pay = parseFloat(document.getElementById('tmInitialPay').value) || 0;
-      const disc = parseFloat(document.getElementById('tmDiscount').value) || 0;
-      const method = document.getElementById('tmMethod').value;
-      const notes = document.getElementById('tmNotes').value.trim();
-
-      if (!type) return showToast('اكتب الإجراء الطبي الجديد');
-      if (cost <= 0) return showToast('اكتب تكلفة العلاج الجديد');
-      if (disc > cost) return showToast('الخصم أكبر من تكلفة العلاج');
-
-      const done = setBtnLoading(document.getElementById('tmAddSaveBtn'), 'جاري الحفظ...');
-      try {
-        if (!state.apiUrl) {
-          const dp = demoData.patients.find(x => x.Patient_ID === p.Patient_ID);
-          if (dp) {
-            dp.Treatment_Type = dp.Treatment_Type ? dp.Treatment_Type + ' + ' + type : type;
-            dp.Total_Cost += cost; dp.Total_Paid += pay; dp.Discount = (dp.Discount || 0) + disc;
-            dp.Remaining = calcRemaining(dp);
-            dp.Status = 'مستمر';
-          }
-          (demoData.treatments = demoData.treatments || []).unshift({
-            Treatment_ID: 'TRT-' + Date.now(), Patient_ID: p.Patient_ID, Treatment_Type: type, Cost: cost, Discount: disc,
-            Start_Date: new Date().toISOString().slice(0, 10), Status: 'مستمر', Notes: notes
-          });
-          if (pay > 0) demoData.todayPayments.unshift({
-            Payment_ID: 'PAY-' + Date.now(), Patient_ID: p.Patient_ID, Patient_Name: p.Name,
-            Amount_Paid: pay, Payment_Date: 'الآن', Payment_Method: method, Notes: 'دفعة علاج جديد: ' + type
-          });
-          closeModal('treatmentModal');
-          showToast('تمت إضافة العلاج على الحساب');
-          refreshAllData();
-          return;
-        }
-
-        const res = await apiPost({
-          action: 'addTreatment', Patient_ID: p.Patient_ID, Treatment_Type: type,
-          Cost: cost, Discount: disc, Initial_Payment: pay, Payment_Method: method, Notes: notes
-        });
-        if (res.status !== 'success') throw new Error(res.message || 'فشل الحفظ');
-
-        closeModal('treatmentModal');
-        showToast('تمت إضافة العلاج على الحساب');
-        applyPatientUpdate(res.data, pay, method, 'دفعة علاج جديد: ' + type);
-        refreshAllData(); // مزامنة في الخلفية
-      } catch (err) {
-        showToast('تعذر الحفظ: ' + explainNetworkError(err));
-      } finally {
-        done();
-      }
-    }
-
-    async function submitPatientEdit() {
-      const p = currentTmPatient();
-      if (!p) return;
-      const payload = {
-        action: 'updatePatient',
-        Patient_ID: p.Patient_ID,
-        Name: document.getElementById('tmEditName').value.trim(),
-        Phone: document.getElementById('tmEditPhone').value.trim(),
-        Status: document.getElementById('tmEditStatus').value,
-        Notes: document.getElementById('tmEditNotes').value.trim()
-      };
-      if (!payload.Name) return showToast('اسم المريض مطلوب');
-
-      const done = setBtnLoading(document.getElementById('tmEditSaveBtn'), 'جاري الحفظ...');
-      try {
-        if (!state.apiUrl) {
-          const dp = demoData.patients.find(x => x.Patient_ID === p.Patient_ID);
-          if (dp) {
-            Object.assign(dp, { Name: payload.Name, Phone: payload.Phone, Status: payload.Status, Notes: payload.Notes });
-          }
-          closeModal('treatmentModal');
-          showToast('تم تعديل بيانات الحالة');
-          refreshAllData();
-          return;
-        }
-
-        const res = await apiPost(payload);
-        if (res.status !== 'success') throw new Error(res.message || 'فشل الحفظ');
-
-        closeModal('treatmentModal');
-        showToast('تم تعديل بيانات الحالة');
-        applyPatientUpdate(res.data, 0);
-        refreshAllData();
-      } catch (err) {
-        showToast('تعذر الحفظ: ' + explainNetworkError(err));
-      } finally {
-        done();
-      }
-    }
-
-
     // ===== شيت العلاجات: عرض وتعديل كل علاج =====
     function renderPatientTreatments(patientId) {
       const el = document.getElementById('patientTreatmentsList');
@@ -1139,21 +982,548 @@
       document.getElementById('treatmentEditModal').classList.remove('hidden');
     }
 
-    function recomputeDemoPatient(pid) {
-      const dp = demoData.patients.find(x => x.Patient_ID === pid);
-      if (!dp) return;
-      const ts = (demoData.treatments || []).filter(t => t.Patient_ID === pid);
-      dp.Total_Cost = ts.reduce((s, t) => s + t.Cost, 0);
-      dp.Discount = ts.reduce((s, t) => s + (t.Discount || 0), 0);
-      dp.Treatment_Type = ts.map(t => t.Treatment_Type).join(' + ');
-      dp.Remaining = calcRemaining(dp);
+
+    // ===================================================================
+    //  قاعدة البيانات المحلية + طابور التعديلات (Offline-first)
+    //  - DB      : آخر نسخة من الشيت (المرضى/العلاجات/الدفعات)
+    //  - OUTBOX  : تعديلات لم تُرفع بعد (كل عملية لها معرّف فريد)
+    //  - VIEW    : DB + OUTBOX (ما يراه المستخدم)
+    //  المزامنة = رفع الطابور دفعة واحدة ثم سحب أحدث نسخة
+    // ===================================================================
+    // <<PURE_START>>
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function localDateStr(d = new Date()) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+    function localDateTime(d = new Date()) { return `${localDateStr(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+    function genId(prefix) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`; }
+    function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+    // تطبيق عملية واحدة على نسخة بيانات (نفس منطق السكربت على جوجل)
+    function applyOp(db, op) {
+      const d = op.data || {};
+      const findP = id => db.patients.find(p => p.Patient_ID === id);
+      const hasT = id => db.treatments.some(t => t.Treatment_ID === id);
+      const hasY = id => db.payments.some(y => y.Payment_ID === id);
+      const pushT = (pid, t) => {
+        if (!t || hasT(t.Treatment_ID)) return;
+        db.treatments.push({ Treatment_ID: t.Treatment_ID, Patient_ID: pid, Treatment_Type: t.Treatment_Type,
+          Cost: +t.Cost || 0, Discount: +t.Discount || 0, Start_Date: t.Start_Date, Status: t.Status || 'مستمر',
+          Notes: t.Notes || '', _pending: true });
+      };
+      const pushY = (pid, y) => {
+        if (!y || hasY(y.Payment_ID)) return;
+        db.payments.push({ Payment_ID: y.Payment_ID, Patient_ID: pid, Amount_Paid: +y.Amount_Paid || 0,
+          Payment_Date: y.Payment_Date, Payment_Method: y.Payment_Method, Notes: y.Notes || '',
+          Discount: +y.Discount || 0, _pending: true });
+      };
+
+      switch (op.type) {
+        case 'addPatient': {
+          const p = d.Patient;
+          if (!p || findP(p.Patient_ID)) return;
+          db.patients.push({ Patient_ID: p.Patient_ID, Name: p.Name, Phone: p.Phone, Start_Date: p.Start_Date,
+            Status: p.Status || 'مستمر', Notes: p.Notes || '', Legacy_Type: '', Legacy_Cost: 0, Legacy_Discount: 0, _pending: true });
+          pushT(p.Patient_ID, d.Treatment);
+          pushY(p.Patient_ID, d.Payment);
+          break;
+        }
+        case 'addTreatment': {
+          const p = findP(d.Patient_ID);
+          if (!p) return;
+          if (!db.treatments.some(t => t.Patient_ID === p.Patient_ID) && ((+p.Legacy_Cost || 0) > 0 || (+p.Legacy_Discount || 0) > 0)) {
+            pushT(p.Patient_ID, { Treatment_ID: 'TRT-L-' + p.Patient_ID, Treatment_Type: p.Legacy_Type || 'علاج',
+              Cost: p.Legacy_Cost, Discount: p.Legacy_Discount, Start_Date: p.Start_Date, Status: p.Status });
+          }
+          pushT(p.Patient_ID, d.Treatment);
+          p.Status = 'مستمر';
+          pushY(p.Patient_ID, d.Payment);
+          break;
+        }
+        case 'updateTreatment': {
+          const t = db.treatments.find(x => x.Treatment_ID === (d.Treatment || {}).Treatment_ID);
+          if (!t) return;
+          Object.assign(t, { Treatment_Type: d.Treatment.Treatment_Type, Cost: +d.Treatment.Cost || 0,
+            Discount: +d.Treatment.Discount || 0, Status: d.Treatment.Status || 'مستمر', Notes: d.Treatment.Notes || '' });
+          break;
+        }
+        case 'updatePatient': {
+          const p = findP((d.Patient || {}).Patient_ID);
+          if (!p) return;
+          Object.assign(p, { Name: d.Patient.Name, Phone: d.Patient.Phone, Status: d.Patient.Status || 'مستمر', Notes: d.Patient.Notes || '' });
+          break;
+        }
+        case 'addPayment': {
+          const y = d.Payment;
+          if (!y || hasY(y.Payment_ID)) return;
+          const p = findP(y.Patient_ID);
+          if (!p) return;
+          (d.Allocations || []).forEach(a => {
+            const t = db.treatments.find(x => x.Treatment_ID === a.Treatment_ID);
+            if (t) t.Discount = +a.Discount || 0;
+          });
+          if (d.LegacyDiscount !== undefined && d.LegacyDiscount !== null) p.Legacy_Discount = +d.LegacyDiscount || 0;
+          pushY(y.Patient_ID, y);
+          break;
+        }
+      }
     }
 
-    async function submitTreatmentEdit() {
+    // حساب الأرصدة والملخص من الجداول الخام
+    function derive(db) {
+      const today = localDateStr();
+      const tBy = {};
+      db.treatments.forEach(t => {
+        const g = tBy[t.Patient_ID] || (tBy[t.Patient_ID] = { cost: 0, disc: 0, types: [] });
+        g.cost += +t.Cost || 0;
+        g.disc += +t.Discount || 0;
+        if (t.Treatment_Type) g.types.push(t.Treatment_Type);
+      });
+      const paid = {};
+      db.payments.forEach(y => { paid[y.Patient_ID] = (paid[y.Patient_ID] || 0) + (+y.Amount_Paid || 0); });
+
+      const patients = [], pMap = {};
+      db.patients.forEach(p => {
+        const g = tBy[p.Patient_ID];
+        const totalCost = g ? g.cost : (+p.Legacy_Cost || 0);
+        const discount = g ? g.disc : (+p.Legacy_Discount || 0);
+        const totalPaid = paid[p.Patient_ID] || 0;
+        const remaining = Math.max(0, totalCost - discount - totalPaid);
+        const o = {
+          Patient_ID: p.Patient_ID, Name: p.Name || '', Phone: normPhone(p.Phone),
+          Treatment_Type: g ? g.types.join(' + ') : (p.Legacy_Type || ''),
+          Total_Cost: totalCost, Discount: discount, Total_Paid: totalPaid, Remaining: remaining,
+          Start_Date: p.Start_Date || '',
+          Status: (remaining === 0 && totalCost > 0) ? 'مكتمل' : (p.Status || 'مستمر'),
+          Notes: p.Notes || '', _pending: !!p._pending
+        };
+        patients.push(o);
+        pMap[p.Patient_ID] = o;
+      });
+      patients.reverse(); // الأحدث أولاً
+
+      const payments = db.payments.slice().reverse();
+      let todayIncome = 0;
+      const todayPayments = [];
+      payments.forEach(y => {
+        if (String(y.Payment_Date).startsWith(today)) {
+          todayIncome += +y.Amount_Paid || 0;
+          const pt = pMap[y.Patient_ID];
+          todayPayments.push(Object.assign({}, y, { Patient_Name: pt ? pt.Name : 'مريض غير معروف', Patient_Phone: pt ? pt.Phone : '' }));
+        }
+      });
+
+      const debtors = patients.filter(p => p.Remaining > 0).sort((a, b) => b.Remaining - a.Remaining);
+      return {
+        patients: patients,
+        treatments: db.treatments.slice().reverse(),
+        payments: payments,
+        summary: {
+          todayIncome: todayIncome,
+          totalDebts: debtors.reduce((s, p) => s + p.Remaining, 0),
+          debtorsCount: debtors.length,
+          debtors: debtors,
+          todayPayments: todayPayments
+        }
+      };
+    }
+
+    // توزيع خصم الدفعة على علاجات المريض من الأحدث للأقدم (قيم مطلقة جديدة)
+    function planDiscount(db, patientId, disc) {
+      if (!(disc > 0)) return { allocations: [], legacy: null };
+      const ts = db.treatments.filter(t => t.Patient_ID === patientId);
+      if (!ts.length) {
+        const p = db.patients.find(x => x.Patient_ID === patientId);
+        const nl = (+p.Legacy_Discount || 0) + disc;
+        if (nl > (+p.Legacy_Cost || 0)) throw new Error('الخصم أكبر من إجمالي التكلفة');
+        return { allocations: [], legacy: nl };
+      }
+      let left = disc;
+      const allocations = [];
+      for (let k = ts.length - 1; k >= 0 && left > 0.0001; k--) {
+        const cap = (+ts[k].Cost || 0) - (+ts[k].Discount || 0);
+        if (cap <= 0) continue;
+        const take = Math.min(cap, left);
+        allocations.push({ Treatment_ID: ts[k].Treatment_ID, Discount: (+ts[k].Discount || 0) + take });
+        left -= take;
+      }
+      if (left > 0.0001) throw new Error('الخصم أكبر من المتبقي من تكاليف العلاجات');
+      return { allocations: allocations, legacy: null };
+    }
+    // <<PURE_END>>
+
+    const LS_DB = 'dental_db_v2';
+    const LS_OUTBOX = 'dental_outbox_v2';
+    let DB = { patients: [], treatments: [], payments: [], syncedAt: '', demo: false };
+    let OUTBOX = [];
+    let VIEW = { patients: [], treatments: [], payments: [] };
+    let syncing = false;
+    let syncMode = 'idle';      // idle | syncing | offline | error
+    let lastSyncError = '';
+
+    function persistOutbox() {
+      try { localStorage.setItem(LS_OUTBOX, JSON.stringify(OUTBOX)); }
+      catch (e) { showToast('⚠️ تعذر الحفظ على الجهاز: المساحة ممتلئة'); }
+    }
+    function persistDB() {
+      try { localStorage.setItem(LS_DB, JSON.stringify(DB)); } catch (e) {}
+    }
+    function loadLocal() {
+      try {
+        const d = JSON.parse(localStorage.getItem(LS_DB) || 'null');
+        if (d && Array.isArray(d.patients) && Array.isArray(d.payments)) DB = d;
+        const o = JSON.parse(localStorage.getItem(LS_OUTBOX) || 'null');
+        if (Array.isArray(o)) OUTBOX = o;
+      } catch (e) {}
+    }
+
+    function rebuildView() {
+      VIEW = clone(DB);
+      OUTBOX.forEach(op => { try { applyOp(VIEW, op); } catch (e) {} });
+      refreshDerived();
+    }
+
+    function refreshDerived() {
+      const d = derive(VIEW);
+      state.patients = d.patients;
+      state.treatments = d.treatments;
+      state.payments = d.payments;
+      state.summary = d.summary;
+      renderAllViews();
+      updateSyncUI();
+    }
+
+    // تسجيل تعديل: يُحفظ فوراً على الجهاز ويظهر في الشاشة، ولا يُرفع إلا عند المزامنة
+    function commitOp(type, data, label) {
+      const op = { opId: genId('OP'), type: type, ts: Date.now(), label: label, data: data };
+      OUTBOX.push(op);
+      persistOutbox();
+      applyOp(VIEW, op);
+      refreshDerived();
+      return op;
+    }
+
+    function seedDemoDb() {
+      const now = localDateTime();
+      const patients = [], treatments = [], payments = [];
+      const todayPaid = { 'PAT-101': 1500, 'PAT-102': 1000 };
+      demoData.patients.forEach(p => {
+        patients.push({ Patient_ID: p.Patient_ID, Name: p.Name, Phone: p.Phone, Start_Date: p.Start_Date, Status: p.Status,
+          Notes: p.Notes, Legacy_Type: '', Legacy_Cost: 0, Legacy_Discount: 0 });
+        treatments.push({ Treatment_ID: 'TRT-' + p.Patient_ID, Patient_ID: p.Patient_ID, Treatment_Type: p.Treatment_Type,
+          Cost: p.Total_Cost, Discount: 0, Start_Date: p.Start_Date, Status: p.Status, Notes: '' });
+        const t = todayPaid[p.Patient_ID] || 0;
+        const before = p.Total_Paid - t;
+        if (before > 0) payments.push({ Payment_ID: 'PAY-' + p.Patient_ID + '-A', Patient_ID: p.Patient_ID, Amount_Paid: before,
+          Payment_Date: p.Start_Date + ' 10:00', Payment_Method: 'كاش', Notes: 'دفعة سابقة', Discount: 0 });
+        if (t > 0) payments.push({ Payment_ID: 'PAY-' + p.Patient_ID + '-B', Patient_ID: p.Patient_ID, Amount_Paid: t,
+          Payment_Date: now, Payment_Method: 'كاش', Notes: 'دفعة اليوم', Discount: 0 });
+      });
+      DB = { patients: patients, treatments: treatments, payments: payments, syncedAt: '', demo: true };
+    }
+
+    // ----- المزامنة: رفع الطابور دفعة واحدة ثم سحب أحدث نسخة -----
+    function setSpin(on) {
+      const icon = document.getElementById('refreshIcon');
+      if (icon) icon.classList.toggle('animate-spin', on);
+    }
+
+    async function syncNow(silent) {
+      if (syncing) return;
+      if (!state.apiUrl) {
+        if (!silent) { showToast('اربط التطبيق برابط السكربت من الإعدادات أولاً'); openSettingsModal(); }
+        return;
+      }
+      if (navigator.onLine === false) {
+        syncMode = 'offline'; lastSyncError = 'لا يوجد اتصال بالإنترنت';
+        updateSyncUI();
+        if (!silent) showToast('لا يوجد اتصال — التعديلات محفوظة على الجهاز وستُرفع عند المزامنة');
+        return;
+      }
+      if (DB.demo && OUTBOX.length) { OUTBOX = []; persistOutbox(); } // بيانات المعاينة لا تُرفع للشيت
+
+      syncing = true; syncMode = 'syncing'; setSpin(true); updateSyncUI();
+      const sent = OUTBOX.map(op => ({ opId: op.opId, type: op.type, data: op.data }));
+      try {
+        const res = sent.length
+          ? await apiPost({ action: 'sync', ops: sent }, 90000)
+          : await apiGet({ action: 'getAll' });
+        if (!res || res.status !== 'success') throw new Error((res && res.message) || 'فشلت المزامنة');
+
+        const raw = sent.length ? (res.data || {}).db : res.data;
+        if (!raw || !Array.isArray(raw.payments) || !Array.isArray(raw.patients)) {
+          throw new Error('السكربت على جوجل قديم: الصق Code.gs الجديد ثم Deploy > Manage deployments > Edit > New version');
+        }
+
+        let failed = 0;
+        if (sent.length) {
+          const failMap = {};
+          ((res.data || {}).results || []).forEach(r => { if (!r.ok) failMap[r.opId] = r.error || 'فشل'; });
+          const sentIds = new Set(sent.map(o => o.opId));
+          OUTBOX = OUTBOX.filter(op => {
+            if (!sentIds.has(op.opId)) return true;           // تعديل جديد أُضيف أثناء المزامنة
+            if (failMap[op.opId]) { op.error = failMap[op.opId]; failed++; return true; }
+            return false;                                     // نجح: يُحذف من الطابور
+          });
+        }
+
+        DB = { patients: raw.patients, treatments: raw.treatments || [], payments: raw.payments, syncedAt: localDateTime(), demo: false };
+        persistDB(); persistOutbox();
+        syncMode = 'idle'; lastSyncError = '';
+        rebuildView();
+        if (!silent || failed) {
+          showToast(failed
+            ? `تمت المزامنة، لكن ${failed} تعديل تعذّر رفعه — اضغط على الحالة بالأعلى لمراجعته`
+            : (sent.length ? `تم رفع ${sent.length} تعديل ✓` : 'تم تحديث البيانات ✓'));
+        }
+      } catch (err) {
+        syncMode = (err && (err.name === 'TypeError' || err.name === 'AbortError')) ? 'offline' : 'error';
+        lastSyncError = explainNetworkError(err);
+        if (!silent) showToast(lastSyncError);
+      } finally {
+        syncing = false; setSpin(false); updateSyncUI();
+      }
+    }
+
+    // عند الفتح: نسحب أحدث نسخة فقط لو لا توجد تعديلات معلّقة (حتى لا يحدث رفع بدون علم المستخدم)
+    function startupSync() {
+      updateSyncUI();
+      if (state.apiUrl && OUTBOX.length === 0) syncNow(true);
+    }
+
+    function updateSyncUI() {
+      const n = OUTBOX.length;
+      const failed = OUTBOX.filter(o => o.error).length;
+      const badge = document.getElementById('syncBadge');
+      if (badge) { badge.textContent = n; badge.classList.toggle('hidden', n === 0); badge.classList.toggle('bg-rose-500', failed > 0); badge.classList.toggle('bg-amber-500', failed === 0); }
+      const warn = document.getElementById('apiWarningBanner');
+      if (warn) warn.classList.toggle('hidden', !!state.apiUrl);
+
+      const el = document.getElementById('connectionStatus');
+      if (!el) return;
+      const dot = c => `<span class="w-2 h-2 rounded-full ${c} inline-block"></span>`;
+      let html;
+      if (!state.apiUrl) html = dot('bg-amber-300') + '<span>وضع المعاينة التجريبي</span>';
+      else if (syncMode === 'syncing') html = dot('bg-emerald-300 animate-pulse') + '<span>جاري المزامنة...</span>';
+      else if (failed > 0) html = dot('bg-rose-400') + `<span>${failed} تعديل تعذّر رفعه • راجعه</span>`;
+      else if (syncMode === 'offline' && n > 0) html = dot('bg-rose-400') + `<span>غير متصل • ${n} تعديل محفوظ على الجهاز</span>`;
+      else if (syncMode === 'offline') html = dot('bg-rose-400') + '<span>غير متصل • يعمل من النسخة المحلية</span>';
+      else if (syncMode === 'error') html = dot('bg-rose-400') + '<span>تعذّرت المزامنة</span>';
+      else if (n > 0) html = dot('bg-amber-300') + `<span>${n} تعديل لم يُرفع • اضغط للمراجعة</span>`;
+      else if (DB.syncedAt) html = dot('bg-emerald-300') + `<span>متزامن • ${DB.syncedAt.slice(11, 16)}</span>`;
+      else html = dot('bg-emerald-300') + '<span>متصل بقاعدة البيانات</span>';
+      el.innerHTML = html;
+      el.style.cursor = n > 0 ? 'pointer' : '';
+      el.onclick = n > 0 ? openPendingModal : null;
+    }
+
+    // ----- نافذة التعديلات المعلّقة -----
+    function opPatientId(op) {
+      const d = op.data || {};
+      if (op.type === 'addPatient' || op.type === 'updatePatient') return (d.Patient || {}).Patient_ID;
+      if (op.type === 'addTreatment') return d.Patient_ID;
+      if (op.type === 'addPayment') return (d.Payment || {}).Patient_ID;
+      if (op.type === 'updateTreatment') {
+        const t = VIEW.treatments.find(x => x.Treatment_ID === (d.Treatment || {}).Treatment_ID);
+        return t ? t.Patient_ID : null;
+      }
+      return null;
+    }
+
+    function openPendingModal() {
+      renderPendingList();
+      document.getElementById('pendingModal').classList.remove('hidden');
+    }
+
+    function renderPendingList() {
+      const el = document.getElementById('pendingList');
+      const hint = document.getElementById('pendingHint');
+      if (!OUTBOX.length) {
+        hint.textContent = 'لا توجد تعديلات معلّقة. كل شيء مرفوع ✓';
+        el.innerHTML = '';
+        return;
+      }
+      hint.textContent = 'هذه التعديلات محفوظة على هذا الجهاز فقط، ولن تظهر في الشيت أو على أجهزة أخرى إلا بعد المزامنة.';
+      el.innerHTML = OUTBOX.map(op => `
+        <div class="flex items-start justify-between gap-2 bg-slate-50 border ${op.error ? 'border-rose-300' : 'border-slate-200'} rounded-xl p-2.5">
+          <div class="min-w-0">
+            <div class="text-xs font-bold text-slate-800">${escapeHtml(op.label || op.type)}</div>
+            <div class="text-[10px] text-slate-500">${escapeHtml(localDateTime(new Date(op.ts)))}</div>
+            ${op.error ? `<div class="text-[11px] font-semibold text-rose-600 mt-0.5">تعذّر الرفع: ${escapeHtml(op.error)}</div>` : ''}
+          </div>
+          <button type="button" onclick="discardOp('${op.opId}')" class="shrink-0 text-[11px] font-bold px-2 py-1 rounded-lg bg-white border border-slate-200 text-rose-600">حذف</button>
+        </div>`).join('');
+    }
+
+    function discardOp(opId) {
+      const op = OUTBOX.find(o => o.opId === opId);
+      if (!op) return;
+      const pid = op.type === 'addPatient' ? opPatientId(op) : null;
+      const msg = pid
+        ? 'حذف إضافة هذا المريض سيحذف أيضاً كل التعديلات المعلّقة المرتبطة به. متأكد؟'
+        : 'حذف هذا التعديل نهائياً؟ لن يُرفع إلى قاعدة البيانات.';
+      if (!confirm(msg)) return;
+      OUTBOX = OUTBOX.filter(o => o.opId !== opId && !(pid && opPatientId(o) === pid));
+      persistOutbox();
+      rebuildView();
+      renderPendingList();
+    }
+
+    function exportBackup() {
+      const blob = new Blob([JSON.stringify({ exportedAt: localDateTime(), DB: DB, OUTBOX: OUTBOX }, null, 1)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `dental-backup-${localDateStr()}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    }
+
+    window.addEventListener('beforeunload', e => {
+      if (OUTBOX.length) { e.preventDefault(); e.returnValue = ''; }
+    });
+    window.addEventListener('online', () => { if (syncMode === 'offline') { syncMode = 'idle'; updateSyncUI(); } });
+
+    // ----- تفاصيل المريض (السجل من النسخة المحلية) -----
+    function openPatientDetails(patientId) {
+      const patient = state.patients.find(p => p.Patient_ID === patientId);
+      if (!patient) return;
+
+      document.getElementById('detailPatientName').textContent = patient.Name;
+      document.getElementById('detailPatientTreatment').textContent = `${patient.Treatment_Type} • ${normPhone(patient.Phone)}`;
+      document.getElementById('detailTotalCost').innerHTML = totalHtml(patient);
+      document.getElementById('detailTotalPaid').textContent = `${formatNumber(patient.Total_Paid)} ${state.currency}`;
+      document.getElementById('detailRemaining').textContent = `${formatNumber(patient.Remaining)} ${state.currency}`;
+      const dRow = document.getElementById('detailDiscountRow');
+      dRow.classList.toggle('hidden', !(patient.Discount > 0));
+      dRow.classList.toggle('flex', patient.Discount > 0);
+      document.getElementById('detailDiscountValue').textContent = `${formatNumber(patient.Discount || 0)} ${state.currency}`;
+      document.getElementById('detailCallBtn').href = `tel:${normPhone(patient.Phone)}`;
+      document.getElementById('detailAddPaymentBtn').onclick = () => {
+        closeModal('patientDetailsModal');
+        openQuickPaymentModal(patient.Patient_ID);
+      };
+      document.getElementById('detailNewTreatmentBtn').onclick = () => openTreatmentModal(patient.Patient_ID, 'add');
+      document.getElementById('detailEditBtn').onclick = () => openTreatmentModal(patient.Patient_ID, 'edit');
+      renderPatientTreatments(patientId);
+      renderHistoryItems((state.payments || []).filter(y => y.Patient_ID === patientId));
+      document.getElementById('patientDetailsModal').classList.remove('hidden');
+    }
+
+    // ----- إضافة مريض جديد -----
+    function submitNewPatient(e) {
+      e.preventDefault();
+      const name = document.getElementById('newPatientName').value.trim();
+      const phone = document.getElementById('newPatientPhone').value.trim();
+      const treatment = document.getElementById('newPatientTreatment').value.trim();
+      const cost = parseFloat(document.getElementById('newPatientTotalCost').value) || 0;
+      const disc = parseFloat(document.getElementById('newPatientDiscount').value) || 0;
+      const init = parseFloat(document.getElementById('newPatientInitialPayment').value) || 0;
+      const method = document.getElementById('newPatientPaymentMethod').value;
+      const notes = document.getElementById('newPatientNotes').value.trim();
+
+      if (!name) return showToast('اسم المريض مطلوب');
+      if (disc > cost) return showToast('الخصم أكبر من إجمالي التكلفة');
+
+      const today = localDateStr();
+      const pid = genId('PAT');
+      commitOp('addPatient', {
+        Patient: { Patient_ID: pid, Name: name, Phone: phone, Start_Date: today, Status: 'مستمر', Notes: notes },
+        Treatment: { Treatment_ID: genId('TRT'), Treatment_Type: treatment || 'علاج', Cost: cost, Discount: disc, Start_Date: today, Status: 'مستمر', Notes: '' },
+        Payment: init > 0 ? { Payment_ID: genId('PAY'), Amount_Paid: init, Payment_Date: localDateTime(), Payment_Method: method, Notes: 'دفعة مقدمة عند فتح الملف', Discount: 0 } : null
+      }, `مريض جديد: ${name}`);
+
+      closeModal('addPatientModal');
+      showToast('تم الحفظ على الجهاز ✓ — اضغط مزامنة للرفع');
+    }
+
+    // ----- دفعة سريعة -----
+    function submitQuickPayment(e) {
+      e.preventDefault();
+      const patientId = document.getElementById('paymentPatientSelect').value;
+      const amount = parseFloat(document.getElementById('paymentAmountInput').value) || 0;
+      const disc = parseFloat(document.getElementById('paymentDiscountInput').value) || 0;
+      const method = document.getElementById('paymentMethodInput').value;
+      const notes = document.getElementById('paymentNotesInput').value.trim();
+
+      const patient = state.patients.find(p => p.Patient_ID === patientId);
+      if (!patient) return showToast('اختر المريض');
+      if (amount <= 0) return showToast('اكتب قيمة الدفعة');
+
+      let plan;
+      try { plan = planDiscount(VIEW, patientId, disc); } catch (err) { return showToast(err.message); }
+
+      commitOp('addPayment', {
+        Payment: { Payment_ID: genId('PAY'), Patient_ID: patientId, Amount_Paid: amount, Payment_Date: localDateTime(),
+          Payment_Method: method, Notes: notes, Discount: disc },
+        Allocations: plan.allocations,
+        LegacyDiscount: plan.legacy
+      }, `دفعة ${formatNumber(amount)} — ${patient.Name}`);
+
+      const updated = state.patients.find(p => p.Patient_ID === patientId);
+      const newRemaining = updated ? updated.Remaining : 0;
+
+      // شاشة النجاح + إيصال الواتساب
+      const patientName = patient.Name || 'المريض';
+      const patientPhone = cleanPhone(patient.Phone);
+      const receiptText = `إيصال استلام دفعة - ${state.clinicName}\nمرحباً أ/ ${patientName}،\nتم استلام دفعة بمبلغ: ${formatNumber(amount)} ${state.currency} (${method}).${disc > 0 ? '\nتم تطبيق خصم: ' + formatNumber(disc) + ' ' + state.currency + '.' : ''}\nالرصيد المتبقي الحالي: ${formatNumber(newRemaining)} ${state.currency}.\nشكراً لثقتكم بنا.${waSign()}`;
+
+      document.getElementById('paymentReceiptSummary').textContent =
+        `المريض: ${patientName} | المدفوع: ${formatNumber(amount)} ${state.currency} | المتبقي: ${formatNumber(newRemaining)} ${state.currency}`;
+      document.getElementById('whatsappReceiptBtn').href =
+        `https://wa.me/${patientPhone}?text=${encodeURIComponent(receiptText)}`;
+
+      document.getElementById('quickPaymentForm').classList.add('hidden');
+      document.getElementById('paymentSuccessView').classList.remove('hidden');
+    }
+
+    // ----- علاج جديد على حساب مريض مسجل -----
+    function submitTreatment() {
+      const p = currentTmPatient();
+      if (!p) return;
+      const type = document.getElementById('tmType').value.trim();
+      const cost = parseFloat(document.getElementById('tmCost').value) || 0;
+      const pay = parseFloat(document.getElementById('tmInitialPay').value) || 0;
+      const disc = parseFloat(document.getElementById('tmDiscount').value) || 0;
+      const method = document.getElementById('tmMethod').value;
+      const notes = document.getElementById('tmNotes').value.trim();
+
+      if (!type) return showToast('اكتب الإجراء الطبي الجديد');
+      if (cost <= 0) return showToast('اكتب تكلفة العلاج الجديد');
+      if (disc > cost) return showToast('الخصم أكبر من تكلفة العلاج');
+
+      commitOp('addTreatment', {
+        Patient_ID: p.Patient_ID,
+        Treatment: { Treatment_ID: genId('TRT'), Treatment_Type: type, Cost: cost, Discount: disc, Start_Date: localDateStr(), Status: 'مستمر', Notes: notes },
+        Payment: pay > 0 ? { Payment_ID: genId('PAY'), Amount_Paid: pay, Payment_Date: localDateTime(), Payment_Method: method, Notes: 'دفعة علاج جديد: ' + type, Discount: 0 } : null
+      }, `علاج جديد (${type}) — ${p.Name}`);
+
+      closeModal('treatmentModal');
+      showToast('تم الحفظ على الجهاز ✓ — اضغط مزامنة للرفع');
+    }
+
+    // ----- تعديل بيانات المريض -----
+    function submitPatientEdit() {
+      const p = currentTmPatient();
+      if (!p) return;
+      const name = document.getElementById('tmEditName').value.trim();
+      if (!name) return showToast('اسم المريض مطلوب');
+
+      commitOp('updatePatient', {
+        Patient: {
+          Patient_ID: p.Patient_ID, Name: name,
+          Phone: document.getElementById('tmEditPhone').value.trim(),
+          Status: document.getElementById('tmEditStatus').value,
+          Notes: document.getElementById('tmEditNotes').value.trim()
+        }
+      }, `تعديل بيانات: ${name}`);
+
+      closeModal('treatmentModal');
+      showToast('تم الحفظ على الجهاز ✓ — اضغط مزامنة للرفع');
+    }
+
+    // ----- تعديل علاج -----
+    function submitTreatmentEdit() {
       const t = (state.treatments || []).find(x => x.Treatment_ID === tmeId);
       if (!t) return;
-      const payload = {
-        action: 'updateTreatment',
+      const T = {
         Treatment_ID: tmeId,
         Treatment_Type: document.getElementById('tmeType').value.trim(),
         Cost: parseFloat(document.getElementById('tmeCost').value) || 0,
@@ -1161,34 +1531,31 @@
         Status: document.getElementById('tmeStatus').value,
         Notes: document.getElementById('tmeNotes').value.trim()
       };
-      if (!payload.Treatment_Type) return showToast('اكتب الإجراء الطبي');
-      if (payload.Discount > payload.Cost) return showToast('الخصم أكبر من تكلفة العلاج');
+      if (!T.Treatment_Type) return showToast('اكتب الإجراء الطبي');
+      if (T.Discount > T.Cost) return showToast('الخصم أكبر من تكلفة العلاج');
 
-      const done = setBtnLoading(document.getElementById('tmeSaveBtn'), 'جاري الحفظ...');
-      try {
-        if (!state.apiUrl) {
-          const dt = (demoData.treatments || []).find(x => x.Treatment_ID === tmeId);
-          if (dt) Object.assign(dt, { Treatment_Type: payload.Treatment_Type, Cost: payload.Cost,
-            Discount: payload.Discount, Status: payload.Status, Notes: payload.Notes });
-          recomputeDemoPatient(t.Patient_ID);
-          closeModal('treatmentEditModal');
-          showToast('تم تعديل العلاج');
-          refreshAllData();
-          return;
-        }
+      commitOp('updateTreatment', { Treatment: T }, `تعديل علاج: ${T.Treatment_Type}`);
+      closeModal('treatmentEditModal');
+      showToast('تم الحفظ على الجهاز ✓ — اضغط مزامنة للرفع');
+    }
 
-        const res = await apiPost(payload);
-        if (res.status !== 'success') throw new Error(res.message || 'فشل الحفظ');
+    // ----- الإعدادات -----
+    function saveSettings(e) {
+      e.preventDefault();
+      state.clinicName = document.getElementById('settingClinicName').value.trim() || CONFIG.clinicName || DEFAULT_CLINIC_NAME;
+      state.currency = document.getElementById('settingCurrency').value.trim() || 'ج.م';
+      state.apiUrl = document.getElementById('settingApiUrl').value.trim();
 
-        closeModal('treatmentEditModal');
-        showToast('تم تعديل العلاج');
-        applyPatientUpdate(res.data, 0);
-        refreshAllData();
-      } catch (err) {
-        showToast('تعذر الحفظ: ' + explainNetworkError(err));
-      } finally {
-        done();
-      }
+      localStorage.setItem('dental_clinic_name', state.clinicName);
+      localStorage.setItem('dental_currency', state.currency);
+      localStorage.setItem('dental_api_url', state.apiUrl);
+
+      updateCurrencyLabels();
+      closeModal('settingsModal');
+      showToast('تم حفظ الإعدادات');
+      if (!state.apiUrl && !DB.patients.length && !OUTBOX.length) seedDemoDb();
+      rebuildView();
+      startupSync();
     }
 
     function updateCurrencyLabels() {
@@ -1216,74 +1583,6 @@
     /**
      * جلب وتحديث كافة البيانات من Google Apps Script أو من الوضع التجريبي
      */
-    async function refreshAllData() {
-      const icon = document.getElementById('refreshIcon');
-      icon.classList.add('animate-spin');
-
-      const warningBanner = document.getElementById('apiWarningBanner');
-      const statusEl = document.getElementById('connectionStatus');
-
-      if (!state.apiUrl) {
-        warningBanner.classList.remove('hidden');
-        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-300 inline-block"></span><span>وضع المعاينة التجريبي</span>`;
-        loadDemoState();
-        renderAllViews();
-        icon.classList.remove('animate-spin');
-        return;
-      }
-
-      warningBanner.classList.add('hidden');
-      statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-300 inline-block animate-pulse"></span><span>جاري المزامنة...</span>`;
-
-      try {
-        let allRes = await apiGet({ action: 'getAll' });
-
-        if (allRes && allRes.status === 'success' && allRes.data && allRes.data.patients) {
-          state.patients = allRes.data.patients;
-          state.treatments = allRes.data.treatments || [];
-          state.summary = allRes.data.summary;
-        } else {
-          // السكربت القديم لم يُحدَّث بعد: نرجع للطلبين المنفصلين
-          const [patientsRes, summaryRes] = await Promise.all([
-            apiGet({ action: 'getPatients' }),
-            apiGet({ action: 'getFinancialSummary' })
-          ]);
-          if (patientsRes.status === 'success') state.patients = patientsRes.data;
-          if (summaryRes.status === 'success') state.summary = summaryRes.data;
-        }
-        saveCache();
-
-        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-300 inline-block"></span><span>متصل بقاعدة البيانات</span>`;
-        renderAllViews();
-      } catch (err) {
-        showToast(explainNetworkError(err));
-        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400 inline-block"></span><span>خطأ في الاتصال</span>`;
-      } finally {
-        icon.classList.remove('animate-spin');
-      }
-    }
-
-    function loadDemoState() {
-      if (!demoData.treatments) {
-        demoData.treatments = demoData.patients.map(p => ({
-          Treatment_ID: 'TRT-' + p.Patient_ID, Patient_ID: p.Patient_ID, Treatment_Type: p.Treatment_Type,
-          Cost: p.Total_Cost, Discount: p.Discount || 0, Start_Date: p.Start_Date, Status: p.Status, Notes: ''
-        }));
-      }
-      state.treatments = [...demoData.treatments];
-      state.patients = [...demoData.patients];
-      const debtors = state.patients.filter(p => p.Remaining > 0).sort((a, b) => b.Remaining - a.Remaining);
-      const totalDebts = debtors.reduce((s, p) => s + p.Remaining, 0);
-      const todayIncome = demoData.todayPayments.reduce((s, p) => s + p.Amount_Paid, 0);
-      state.summary = {
-        todayIncome,
-        totalDebts,
-        debtorsCount: debtors.length,
-        debtors,
-        todayPayments: [...demoData.todayPayments]
-      };
-    }
-
     function renderAllViews() {
       renderDashboard();
       renderPatientsList();
@@ -1454,50 +1753,6 @@
     /**
      * فتح نافذة تفاصيل المريض وسجل الدفعات
      */
-    async function openPatientDetails(patientId) {
-      const patient = state.patients.find(p => p.Patient_ID === patientId);
-      if (!patient) return;
-
-      document.getElementById('detailPatientName').textContent = patient.Name;
-      document.getElementById('detailPatientTreatment').textContent = `${patient.Treatment_Type} • ${normPhone(patient.Phone)}`;
-      document.getElementById('detailTotalCost').innerHTML = totalHtml(patient);
-      document.getElementById('detailTotalPaid').textContent = `${formatNumber(patient.Total_Paid)} ${state.currency}`;
-      document.getElementById('detailRemaining').textContent = `${formatNumber(patient.Remaining)} ${state.currency}`;
-      const dRow = document.getElementById('detailDiscountRow');
-      dRow.classList.toggle('hidden', !(patient.Discount > 0));
-      dRow.classList.toggle('flex', patient.Discount > 0);
-      document.getElementById('detailDiscountValue').textContent = `${formatNumber(patient.Discount || 0)} ${state.currency}`;
-      document.getElementById('detailCallBtn').href = `tel:${normPhone(patient.Phone)}`;
-      document.getElementById('detailAddPaymentBtn').onclick = () => {
-        closeModal('patientDetailsModal');
-        openQuickPaymentModal(patient.Patient_ID);
-      };
-      document.getElementById('detailNewTreatmentBtn').onclick = () => openTreatmentModal(patient.Patient_ID, 'add');
-      document.getElementById('detailEditBtn').onclick = () => openTreatmentModal(patient.Patient_ID, 'edit');
-      renderPatientTreatments(patientId);
-
-      const historyContainer = document.getElementById('patientHistoryList');
-      historyContainer.innerHTML = `<div class="text-xs text-slate-400 py-4 text-center">جاري تحميل السجل...</div>`;
-      document.getElementById('patientDetailsModal').classList.remove('hidden');
-
-      if (!state.apiUrl) {
-        const localHistory = demoData.todayPayments.filter(pay => pay.Patient_ID === patientId);
-        renderHistoryItems(localHistory);
-        return;
-      }
-
-      try {
-        const res = await apiGet({ action: 'getPatientHistory', patientId });
-        if (res.status === 'success') {
-          renderHistoryItems(res.data);
-        } else {
-          historyContainer.innerHTML = `<div class="text-xs text-rose-500 py-3 text-center">${res.message}</div>`;
-        }
-      } catch (e) {
-        historyContainer.innerHTML = `<div class="text-xs text-rose-500 py-3 text-center">${escapeHtml(explainNetworkError(e))}</div>`;
-      }
-    }
-
     function renderHistoryItems(items) {
       const container = document.getElementById('patientHistoryList');
       if (!items || items.length === 0) {
@@ -1507,7 +1762,7 @@
       container.innerHTML = items.map(item => `
         <div class="bg-slate-50 border border-slate-200/60 rounded-xl p-3 flex items-center justify-between">
           <div>
-            <p class="text-xs font-bold text-slate-700">${escapeHtml(item.Payment_Date)} (${escapeHtml(item.Payment_Method)})</p>
+            <p class="text-xs font-bold text-slate-700">${escapeHtml(item.Payment_Date)} (${escapeHtml(item.Payment_Method)})${item._pending ? ' <span class="text-[10px] font-semibold text-amber-600">⏳ لم تُرفع بعد</span>' : ''}</p>
             <p class="text-[11px] text-slate-500">${escapeHtml(item.Notes || 'دفعة نقدية')}</p>
             ${item.Discount > 0 ? `<p class="text-[11px] font-bold text-amber-600">🏷️ خصم مُطبق مع هذه الدفعة: ${formatNumber(item.Discount)} ${state.currency}</p>` : ''}
           </div>
@@ -1522,110 +1777,6 @@
     function openAddPatientModal() {
       document.getElementById('addPatientForm').reset();
       document.getElementById('addPatientModal').classList.remove('hidden');
-    }
-
-    async function submitNewPatient(e) {
-      e.preventDefault();
-      const btn = document.getElementById('savePatientBtn');
-      const originalHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = `<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span><span>جاري الحفظ...</span>`;
-
-      const payload = {
-        action: 'addPatient',
-        Name: document.getElementById('newPatientName').value.trim(),
-        Phone: document.getElementById('newPatientPhone').value.trim(),
-        Treatment_Type: document.getElementById('newPatientTreatment').value.trim(),
-        Total_Cost: parseFloat(document.getElementById('newPatientTotalCost').value) || 0,
-        Discount: parseFloat(document.getElementById('newPatientDiscount').value) || 0,
-        Initial_Payment: parseFloat(document.getElementById('newPatientInitialPayment').value) || 0,
-        Payment_Method: document.getElementById('newPatientPaymentMethod').value,
-        Notes: document.getElementById('newPatientNotes').value.trim()
-      };
-
-      try {
-        if (!state.apiUrl) {
-          // حفظ في الوضع التجريبي
-          const newId = 'PAT-' + Date.now();
-          demoData.patients.unshift({
-            Patient_ID: newId,
-            Name: payload.Name,
-            Phone: payload.Phone,
-            Treatment_Type: payload.Treatment_Type,
-            Total_Cost: payload.Total_Cost,
-            Discount: payload.Discount,
-            Total_Paid: payload.Initial_Payment,
-            Remaining: Math.max(0, payload.Total_Cost - payload.Discount - payload.Initial_Payment),
-            Start_Date: 'اليوم',
-            Status: 'مستمر',
-            Notes: payload.Notes
-          });
-          (demoData.treatments = demoData.treatments || []).unshift({
-            Treatment_ID: 'TRT-' + newId, Patient_ID: newId, Treatment_Type: payload.Treatment_Type || 'علاج',
-            Cost: payload.Total_Cost, Discount: payload.Discount || 0,
-            Start_Date: new Date().toISOString().slice(0, 10), Status: 'مستمر', Notes: ''
-          });
-          if (payload.Initial_Payment > 0) {
-            demoData.todayPayments.unshift({
-              Payment_ID: 'PAY-' + Date.now(),
-              Patient_ID: newId,
-              Patient_Name: payload.Name,
-              Amount_Paid: payload.Initial_Payment,
-              Payment_Date: 'الآن',
-              Payment_Method: payload.Payment_Method,
-              Notes: 'دفعة مقدمة'
-            });
-          }
-          closeModal('addPatientModal');
-          showToast('تمت إضافة المريض بنجاح');
-          refreshAllData();
-          return;
-        }
-
-        // نستخدم text/plain لتفادي طلبات CORS Preflight في Google Apps Script
-        const response = await apiPost(payload);
-
-        if (response.status === 'success') {
-          closeModal('addPatientModal');
-          showToast('تم حفظ ملف المريض بنجاح');
-          const np = (response.data && response.data.Patient) || response.data || {};
-          if (response.data && response.data.Treatment) upsertTreatment(response.data.Treatment);
-          if (np.Patient_ID) {
-            state.patients.unshift({
-              Patient_ID: np.Patient_ID,
-              Name: np.Name || payload.Name,
-              Phone: np.Phone || payload.Phone,
-              Treatment_Type: np.Treatment_Type || payload.Treatment_Type,
-              Total_Cost: np.Total_Cost != null ? np.Total_Cost : payload.Total_Cost,
-              Discount: np.Discount != null ? np.Discount : payload.Discount,
-              Total_Paid: np.Total_Paid != null ? np.Total_Paid : payload.Initial_Payment,
-              Remaining: np.Remaining != null ? np.Remaining : Math.max(0, payload.Total_Cost - payload.Discount - payload.Initial_Payment),
-              Start_Date: np.Start_Date || '',
-              Status: np.Status || 'مستمر',
-              Notes: np.Notes != null ? np.Notes : payload.Notes
-            });
-            if (payload.Initial_Payment > 0) {
-              state.summary.todayIncome = (state.summary.todayIncome || 0) + payload.Initial_Payment;
-              (state.summary.todayPayments = state.summary.todayPayments || []).unshift({
-                Payment_ID: 'PAY-' + Date.now(), Patient_ID: np.Patient_ID, Patient_Name: payload.Name,
-                Amount_Paid: payload.Initial_Payment, Payment_Date: 'الآن',
-                Payment_Method: payload.Payment_Method, Notes: 'دفعة مقدمة'
-              });
-            }
-            rebuildDebts();
-            saveCache();
-            renderAllViews();
-          }
-          refreshAllData(); // مزامنة في الخلفية بدون انتظار
-        } else {
-          showToast('خطأ: ' + response.message);
-        }
-      } catch (err) {
-        showToast(explainNetworkError(err));
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-      }
     }
 
     /**
@@ -1663,87 +1814,6 @@
       }
     }
 
-    async function submitQuickPayment(e) {
-      e.preventDefault();
-      const btn = document.getElementById('savePaymentBtn');
-      const originalHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = `<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span><span>جاري تسجيل الدفعة...</span>`;
-
-      const patientId = document.getElementById('paymentPatientSelect').value;
-      const amount = parseFloat(document.getElementById('paymentAmountInput').value) || 0;
-      const disc = parseFloat(document.getElementById('paymentDiscountInput').value) || 0;
-      const method = document.getElementById('paymentMethodInput').value;
-      const notes = document.getElementById('paymentNotesInput').value.trim();
-
-      const patient = state.patients.find(p => p.Patient_ID === patientId);
-
-      const payload = {
-        action: 'addPayment',
-        Patient_ID: patientId,
-        Amount_Paid: amount,
-        Discount: disc,
-        Payment_Method: method,
-        Notes: notes
-      };
-
-      try {
-        let newRemaining = 0;
-
-        if (!state.apiUrl) {
-          // الوضع التجريبي
-          if (patient) {
-            patient.Total_Paid += amount;
-            patient.Discount = (patient.Discount || 0) + disc;
-            patient.Remaining = calcRemaining(patient);
-            newRemaining = patient.Remaining;
-          }
-          demoData.todayPayments.unshift({
-            Payment_ID: 'PAY-' + Date.now(),
-            Patient_ID: patientId,
-            Patient_Name: patient ? patient.Name : '',
-            Amount_Paid: amount,
-            Discount: disc,
-            Payment_Date: 'الآن',
-            Payment_Method: method,
-            Notes: notes
-          });
-          refreshAllData();
-        } else {
-          const response = await apiPost(payload);
-
-          if (response.status !== 'success') {
-            throw new Error(response.message || 'فشل الحفظ');
-          }
-
-          newRemaining = response.data.Updated_Patient
-            ? response.data.Updated_Patient.Remaining
-            : Math.max(0, (patient ? patient.Remaining : 0) - amount);
-
-          applyPaymentLocally(patientId, amount, method, notes, response.data.Updated_Patient, response.data);
-          refreshAllData(); // مزامنة في الخلفية بدون انتظار
-        }
-
-        // تجهيز شاشة النجاح ورابط إيصال الواتساب
-        const patientName = patient ? patient.Name : 'المريض';
-        const patientPhone = patient ? cleanPhone(patient.Phone) : '';
-        const receiptText = `إيصال استلام دفعة - ${state.clinicName}\nمرحباً أ/ ${patientName}،\nتم استلام دفعة بمبلغ: ${formatNumber(amount)} ${state.currency} (${method}).${disc > 0 ? '\nتم تطبيق خصم: ' + formatNumber(disc) + ' ' + state.currency + '.' : ''}\nالرصيد المتبقي الحالي: ${formatNumber(newRemaining)} ${state.currency}.\nشكراً لثقتكم بنا.${waSign()}`;
-
-        document.getElementById('paymentReceiptSummary').textContent =
-          `المريض: ${patientName} | المدفوع: ${formatNumber(amount)} ${state.currency} | المتبقي: ${formatNumber(newRemaining)} ${state.currency}`;
-        document.getElementById('whatsappReceiptBtn').href =
-          `https://wa.me/${patientPhone}?text=${encodeURIComponent(receiptText)}`;
-
-        document.getElementById('quickPaymentForm').classList.add('hidden');
-        document.getElementById('paymentSuccessView').classList.remove('hidden');
-      } catch (err) {
-        showToast('تعذر حفظ الدفعة: ' + explainNetworkError(err));
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-      }
-    }
-
     /**
      * نافذة الإعدادات
      */
@@ -1752,22 +1822,6 @@
       document.getElementById('settingCurrency').value = state.currency;
       document.getElementById('settingApiUrl').value = state.apiUrl;
       document.getElementById('settingsModal').classList.remove('hidden');
-    }
-
-    function saveSettings(e) {
-      e.preventDefault();
-      state.clinicName = document.getElementById('settingClinicName').value.trim() || CONFIG.clinicName || DEFAULT_CLINIC_NAME;
-      state.currency = document.getElementById('settingCurrency').value.trim() || 'ج.م';
-      state.apiUrl = document.getElementById('settingApiUrl').value.trim();
-
-      localStorage.setItem('dental_clinic_name', state.clinicName);
-      localStorage.setItem('dental_currency', state.currency);
-      localStorage.setItem('dental_api_url', state.apiUrl);
-
-      updateCurrencyLabels();
-      closeModal('settingsModal');
-      showToast('تم حفظ الإعدادات');
-      refreshAllData();
     }
 
     /**
