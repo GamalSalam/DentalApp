@@ -1,5 +1,10 @@
 {
-  "apiUrl": "https://script.google.com/macros/s/AKfycbzLVvriYyR3m_Rw4LAYqnw-jdoKpgJiO5iYYomTWCMdwAEqy-0nLlCmCRAjfNZmmQ_D/exec",
+  "apiUrl": "https://script.google.com/macros/s/AKfycbyYa2_Tnb7p8eFka6dNrKRwCADc63Y28BsWlNZOwGL9xI4fFWOdD-qYklQ2qIS1G0Sf/exec",
   "clinicName": "عيادات دكتور فرج الصعيدى",
-  "waSignature": "مع تحيات إدارة العيادة"
+  "waSignature": "مع تحيات إدارة العيادة",
+  "branches": [
+    "المحلة الكبرى",
+    "شبرا"
+  ],
+  "defaultBranch": "المحلة الكبرى"
 }
